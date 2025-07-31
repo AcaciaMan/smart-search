@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import { SearchResult } from '../types';
 
 export class SearchResultsPanel {
@@ -65,6 +67,84 @@ export class SearchResultsPanel {
   }
 
   private getWebviewContent(results: SearchResult[]): string {
+    // Read the HTML template
+    const htmlPath = path.join(__dirname, '..', 'webview', 'searchResults.html');
+    const cssPath = path.join(__dirname, '..', 'webview', 'searchResults.css');
+    let htmlContent: string;
+    
+    try {
+      htmlContent = fs.readFileSync(htmlPath, 'utf8');
+    } catch (error) {
+      console.error('Failed to read HTML template:', error);
+      return this.getFallbackHtml(results);
+    }
+    
+    // Create URI for CSS file
+    const cssUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.file(cssPath)
+    );
+    
+    // Generate search info
+    const searchInfo = `Found ${results.length} result${results.length !== 1 ? 's' : ''}`;
+    
+    // Generate results content
+    const resultsContent = results.length === 0 
+      ? this.getNoResultsHtml()
+      : results.map(result => this.getResultHtml(result)).join('');
+    
+    // Replace placeholders
+    return htmlContent
+      .replace('{{CSS_URI}}', cssUri.toString())
+      .replace('{{SEARCH_INFO}}', searchInfo)
+      .replace('{{RESULTS_CONTENT}}', resultsContent);
+  }
+
+  private getResultHtml(result: SearchResult): string {
+    const fileExtension = path.extname(result.file).substring(1).toUpperCase() || 'TXT';
+    const relativePath = this.getRelativePath(result.file);
+    
+    return `
+      <div class="result" onclick="openFile('${this.escapeHtml(result.file)}', ${result.line}, ${result.column})" tabindex="-1">
+        <div class="file-path">${this.escapeHtml(relativePath)}</div>
+        <div class="line-info">Line ${result.line}, Column ${result.column}</div>
+        <div class="content">${this.escapeHtml(result.content)}</div>
+        ${result.summary ? `<div class="summary">💡 ${this.escapeHtml(result.summary)}</div>` : ''}
+        <div class="result-footer">
+          <div class="file-type">${fileExtension}</div>
+          <div class="score">Score: ${result.score.toFixed(2)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private getNoResultsHtml(): string {
+    return `
+      <div class="no-results">
+        <div class="no-results-icon">🔍</div>
+        <h3>No results found</h3>
+        <p>Try adjusting your search terms or search in a different location.</p>
+      </div>
+    `;
+  }
+
+  private getRelativePath(filePath: string): string {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      return filePath;
+    }
+    
+    for (const folder of workspaceFolders) {
+      const folderPath = folder.uri.fsPath;
+      if (filePath.startsWith(folderPath)) {
+        return path.relative(folderPath, filePath);
+      }
+    }
+    
+    return filePath;
+  }
+
+  private getFallbackHtml(results: SearchResult[]): string {
+    // Fallback HTML in case the template file can't be read
     return `
       <!DOCTYPE html>
       <html lang="en">
@@ -73,89 +153,23 @@ export class SearchResultsPanel {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Smart Search Results</title>
         <style>
-          body {
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-            padding: 20px;
-            margin: 0;
-          }
-          .result {
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            margin-bottom: 16px;
-            padding: 12px;
-            background-color: var(--vscode-editor-background);
-          }
-          .result:hover {
-            background-color: var(--vscode-list-hoverBackground);
-            cursor: pointer;
-          }
-          .file-path {
-            font-weight: bold;
-            color: var(--vscode-textLink-foreground);
-            margin-bottom: 8px;
-          }
-          .line-info {
-            color: var(--vscode-descriptionForeground);
-            font-size: 0.9em;
-            margin-bottom: 8px;
-          }
-          .content {
-            font-family: var(--vscode-editor-font-family);
-            background-color: var(--vscode-textCodeBlock-background);
-            padding: 8px;
-            border-radius: 4px;
-            white-space: pre-wrap;
-            margin-bottom: 8px;
-          }
-          .summary {
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-            font-size: 0.9em;
-          }
-          .score {
-            float: right;
-            color: var(--vscode-descriptionForeground);
-            font-size: 0.8em;
-          }
-          mark {
-            background-color: var(--vscode-editor-findMatchHighlightBackground);
-            color: var(--vscode-editor-foreground);
-          }
-          .no-results {
-            text-align: center;
-            color: var(--vscode-descriptionForeground);
-            margin-top: 50px;
-          }
+          body { font-family: var(--vscode-font-family); padding: 20px; }
+          .result { border: 1px solid #ccc; margin: 10px 0; padding: 10px; cursor: pointer; }
+          .result:hover { background-color: var(--vscode-list-hoverBackground); }
         </style>
       </head>
       <body>
-        <h2>Search Results (${results.length})</h2>
-        ${results.length === 0 ? 
-          '<div class="no-results">No results found</div>' :
-          results.map(result => `
-            <div class="result" onclick="openFile('${result.file}', ${result.line}, ${result.column})">
-              <div class="file-path">${result.file}</div>
-              <div class="line-info">Line ${result.line}, Column ${result.column}</div>
-              <div class="content">${this.escapeHtml(result.content)}</div>
-              ${result.summary ? `<div class="summary">${this.escapeHtml(result.summary)}</div>` : ''}
-              <div class="score">Score: ${result.score.toFixed(2)}</div>
-            </div>
-          `).join('')
-        }
-        
+        <h2>Smart Search Results (${results.length})</h2>
+        ${results.map(result => `
+          <div class="result" onclick="openFile('${this.escapeHtml(result.file)}', ${result.line}, ${result.column})">
+            <strong>${this.escapeHtml(result.file)}</strong><br>
+            Line ${result.line}: ${this.escapeHtml(result.content)}
+          </div>
+        `).join('')}
         <script>
           const vscode = acquireVsCodeApi();
-          
           function openFile(file, line, column) {
-            vscode.postMessage({
-              command: 'openFile',
-              file: file,
-              line: line,
-              column: column
-            });
+            vscode.postMessage({ command: 'openFile', file, line, column });
           }
         </script>
       </body>

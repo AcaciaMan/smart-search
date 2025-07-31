@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Search Results</title>
+  <link rel="stylesheet" href="{{CSS_URI}}">
+</head>
+<body>
+  <div class="header">
+    <h2>Smart Search Results</h2>
+    <div class="search-info" id="searchInfo">{{SEARCH_INFO}}</div>
+  </div>
+  
+  <div id="results-container">
+    {{RESULTS_CONTENT}}
+  </div>
+  
+  <script>
+    const vscode = acquireVsCodeApi();
+    
+    function openFile(file, line, column) {
+      vscode.postMessage({
+        command: 'openFile',
+        file: file,
+        line: line,
+        column: column
+      });
+    }
+    
+    // Handle keyboard navigation
+    document.addEventListener('keydown', function(e) {
+      const results = document.querySelectorAll('.result');
+      const focused = document.querySelector('.result:focus');
+      let index = Array.from(results).indexOf(focused);
+      
+      switch(e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          index = Math.min(index + 1, results.length - 1);
+          results[index]?.focus();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          index = Math.max(index - 1, 0);
+          results[index]?.focus();
+          break;
+        case 'Enter':
+          if (focused) {
+            focused.click();
+          }
+          break;
+      }
+    });
+    
+    // Make results focusable for keyboard navigation
+    document.querySelectorAll('.result').forEach((result, index) => {
+      result.setAttribute('tabindex', index === 0 ? '0' : '-1');
+    });
+  </script>
+</body>
+</html>
