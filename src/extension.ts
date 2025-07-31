@@ -43,17 +43,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  const indexCommand = vscode.commands.registerCommand('smart-search.indexWorkspace', async () => {
-    try {
-      vscode.window.showInformationMessage('Indexing workspace...');
-      await indexManager.indexWorkspace();
-      vscode.window.showInformationMessage('Workspace indexed successfully!');
-    } catch (error) {
-      vscode.window.showErrorMessage(`Indexing failed: ${error}`);
-    }
-  });
-
-  context.subscriptions.push(searchCommand, indexCommand);
+  context.subscriptions.push(searchCommand);
 }
 
 export function deactivate() {

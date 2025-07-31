@@ -16,20 +16,18 @@ export interface SearchOptions {
   caseSensitive?: boolean;
   wholeWord?: boolean;
   useRegex?: boolean;
+  searchInResults?: boolean; // Search within previously stored ripgrep results
 }
 
-export interface IndexEntry {
+export interface StoredSearchResult {
   id: string;
+  originalQuery: string;
+  timestamp: Date;
   file: string;
-  content: string;
-  symbols: Symbol[];
-  lastModified: Date;
-}
-
-export interface Symbol {
-  name: string;
-  kind: string;
-  line: number;
+  line: number;  
   column: number;
-  scope: string;
+  content: string;
+  context: string[];
+  score: number;
+  summary?: string;
 }

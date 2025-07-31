@@ -23,12 +23,6 @@
         "title": "Smart Search",
         "category": "Smart Search",
         "icon": "$(search)"
-      },
-      {
-        "command": "smart-search.indexWorkspace",
-        "title": "Index Workspace",
-        "category": "Smart Search",
-        "icon": "$(database)"
       }
     ],
     "keybindings": [

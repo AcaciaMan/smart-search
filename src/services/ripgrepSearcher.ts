@@ -106,4 +106,33 @@ export class RipgrepSearcher {
       });
     });
   }
+
+  /**
+   * Search for symbols (functions, classes, etc.) using ripgrep with regex patterns
+   */
+  async searchSymbols(query: string): Promise<SearchResult[]> {
+    const symbolPatterns = [
+      `function\\s+${query}`,              // JavaScript/TypeScript functions
+      `class\\s+${query}`,                 // Classes
+      `interface\\s+${query}`,             // TypeScript interfaces
+      `type\\s+${query}`,                  // TypeScript types
+      `const\\s+${query}`,                 // Constants
+      `let\\s+${query}`,                   // Variables
+      `var\\s+${query}`,                   // Variables
+      `def\\s+${query}`,                   // Python functions
+      `class\\s+${query}:`,                // Python classes
+      `public\\s+.*${query}`,              // Java/C# public methods
+      `private\\s+.*${query}`,             // Java/C# private methods
+      `protected\\s+.*${query}`,           // Java/C# protected methods
+    ];
+
+    const searchOptions: SearchOptions = {
+      query: symbolPatterns.join('|'),
+      useRegex: true,
+      caseSensitive: false,
+      maxResults: 50
+    };
+
+    return this.search(searchOptions);
+  }
 }

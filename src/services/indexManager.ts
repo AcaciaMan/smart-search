@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import axios from 'axios';
-import { SearchResult, SearchOptions, IndexEntry } from '../types';
+import { SearchResult, SearchOptions, StoredSearchResult } from '../types';
 
 export class IndexManager {
   private solrUrl: string;
@@ -9,65 +9,26 @@ export class IndexManager {
     this.solrUrl = vscode.workspace.getConfiguration('smart-search').get('solrUrl', 'http://localhost:8983/solr');
   }
 
-  async indexWorkspace(): Promise<void> {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders) {
-      throw new Error('No workspace folder found');
-    }
+  /**
+   * Store ripgrep search results in Solr for future secondary searches
+   */
+  async storeSearchResults(results: SearchResult[], originalQuery: string): Promise<void> {
+    const timestamp = new Date();
+    const storedResults: StoredSearchResult[] = results.map((result, index) => ({
+      id: `${originalQuery}-${timestamp.getTime()}-${index}`,
+      originalQuery,
+      timestamp,
+      file: result.file,
+      line: result.line,
+      column: result.column,
+      content: result.content,
+      context: result.context,
+      score: result.score,
+      summary: result.summary
+    }));
 
-    for (const folder of workspaceFolders) {
-      await this.indexFolder(folder);
-    }
-  }
-
-  private async indexFolder(folder: vscode.WorkspaceFolder): Promise<void> {
-    const files = await vscode.workspace.findFiles(
-      new vscode.RelativePattern(folder, '**/*'),
-      new vscode.RelativePattern(folder, '{**/node_modules/**,**/.git/**,**/out/**,**/dist/**}')
-    );
-
-    const entries: IndexEntry[] = [];
-    
-    for (const file of files) {
-      try {
-        const document = await vscode.workspace.openTextDocument(file);
-        const symbols = await this.extractSymbols(document);
-        
-        const entry: IndexEntry = {
-          id: file.fsPath,
-          file: file.fsPath,
-          content: document.getText(),
-          symbols,
-          lastModified: new Date()
-        };
-        
-        entries.push(entry);
-      } catch (error) {
-        console.warn(`Failed to index file ${file.fsPath}:`, error);
-      }
-    }
-
-    await this.sendToSolr(entries);
-  }
-
-  private async extractSymbols(document: vscode.TextDocument) {
-    const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-      'vscode.executeDocumentSymbolProvider',
-      document.uri
-    );
-
-    return symbols?.map(symbol => ({
-      name: symbol.name,
-      kind: vscode.SymbolKind[symbol.kind],
-      line: symbol.range.start.line,
-      column: symbol.range.start.character,
-      scope: symbol.detail || ''
-    })) || [];
-  }
-
-  private async sendToSolr(entries: IndexEntry[]): Promise<void> {
     try {
-      const response = await axios.post(`${this.solrUrl}/smart-search/update/json/docs`, entries, {
+      const response = await axios.post(`${this.solrUrl}/smart-search-results/update/json/docs`, storedResults, {
         headers: {
           'Content-Type': 'application/json'
         },
@@ -77,25 +38,29 @@ export class IndexManager {
       });
 
       if (response.status !== 200) {
-        throw new Error(`Solr indexing failed: ${response.statusText}`);
+        throw new Error(`Failed to store search results in Solr: ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Failed to send data to Solr:', error);
+      console.error('Failed to store search results in Solr:', error);
       throw error;
     }
   }
 
-  async search(options: SearchOptions): Promise<SearchResult[]> {
+  /**
+   * Search within previously stored ripgrep results
+   */
+  async searchStoredResults(options: SearchOptions): Promise<SearchResult[]> {
     try {
-      const response = await axios.get(`${this.solrUrl}/smart-search/select`, {
+      const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
         params: {
-          q: options.query,
+          q: `content:*${options.query}* OR context:*${options.query}*`,
           rows: options.maxResults || 100,
           wt: 'json',
           hl: 'true',
-          'hl.fl': 'content',
+          'hl.fl': 'content,context',
           'hl.simple.pre': '<mark>',
-          'hl.simple.post': '</mark>'
+          'hl.simple.post': '</mark>',
+          sort: 'score desc,timestamp desc'
         }
       });
 
@@ -104,44 +69,48 @@ export class IndexManager {
 
       return docs.map((doc: any): SearchResult => ({
         file: doc.file,
-        line: 0, // Solr doesn't provide line numbers by default
-        column: 0,
+        line: doc.line,
+        column: doc.column,
         content: doc.content,
-        context: highlighting[doc.id]?.content || [],
-        score: doc.score || 0
+        context: doc.context || [],
+        score: doc.score || 0,
+        summary: doc.summary
       }));
     } catch (error) {
-      console.error('Solr search failed:', error);
+      console.error('Search in stored results failed:', error);
       throw error;
     }
   }
 
-  async searchSymbols(query: string): Promise<SearchResult[]> {
+  /**
+   * Get list of stored search queries
+   */
+  async getStoredQueries(): Promise<string[]> {
     try {
-      const response = await axios.get(`${this.solrUrl}/smart-search/select`, {
+      const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
         params: {
-          q: `symbols.name:*${query}*`,
-          rows: 50,
-          wt: 'json'
+          q: '*:*',
+          rows: 0,
+          wt: 'json',
+          facet: 'true',
+          'facet.field': 'originalQuery',
+          'facet.limit': 50
         }
       });
 
-      const docs = response.data.response.docs;
+      const facetFields = response.data.facet_counts?.facet_fields?.originalQuery || [];
+      const queries: string[] = [];
+      
+      // Solr returns facets as [value, count, value, count, ...]
+      for (let i = 0; i < facetFields.length; i += 2) {
+        if (facetFields[i + 1] > 0) { // Only include queries with results
+          queries.push(facetFields[i]);
+        }
+      }
 
-      return docs.flatMap((doc: any) => 
-        doc.symbols
-          .filter((symbol: any) => symbol.name.toLowerCase().includes(query.toLowerCase()))
-          .map((symbol: any): SearchResult => ({
-            file: doc.file,
-            line: symbol.line,
-            column: symbol.column,
-            content: `${symbol.kind}: ${symbol.name}`,
-            context: [symbol.scope],
-            score: doc.score || 0
-          }))
-      );
+      return queries;
     } catch (error) {
-      console.error('Symbol search failed:', error);
+      console.error('Failed to get stored queries:', error);
       throw error;
     }
   }

@@ -40,8 +40,8 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'openFile':
           await this.openFile(data.file, data.line, data.column);
           break;
-        case 'indexWorkspace':
-          await this.indexWorkspace();
+        case 'loadSessions':
+          await this.loadSearchSessions();
           break;
       }
     });
@@ -102,31 +102,20 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async indexWorkspace() {
+  private async loadSearchSessions() {
     if (!this._view) {
       return;
     }
 
-    this._view.webview.postMessage({
-      type: 'indexStarted'
-    });
-
     try {
-      const indexManager = new IndexManager();
-      await indexManager.indexWorkspace();
+      const sessions = await this.searchProvider.getSearchSessions();
       
       this._view.webview.postMessage({
-        type: 'indexCompleted'
+        type: 'sessionsLoaded',
+        sessions: sessions
       });
-      
-      vscode.window.showInformationMessage('Workspace indexed successfully!');
     } catch (error) {
-      this._view.webview.postMessage({
-        type: 'indexError',
-        error: error instanceof Error ? error.message : String(error)
-      });
-      
-      vscode.window.showErrorMessage(`Indexing failed: ${error}`);
+      vscode.window.showErrorMessage(`Failed to load search sessions: ${error}`);
     }
   }
 

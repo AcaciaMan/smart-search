@@ -175,18 +175,25 @@
                 <input type="checkbox" id="useRegex" />
                 <span>Regex</span>
             </label>
+            <label class="option-checkbox">
+                <input type="checkbox" id="searchInResults" />
+                <span>Search in stored results</span>
+            </label>
         </div>
         
         <div class="search-buttons">
             <button id="searchBtn" class="btn btn-primary">🔍 Search</button>
-            <button id="indexBtn" class="btn btn-secondary">📚 Index</button>
+            <button id="sessionsBtn" class="btn btn-secondary">📋 Sessions</button>
         </div>
     </div>
     
     <div id="status" class="status hidden"></div>
     
     <div class="results-info">
-        Results will appear in the main results panel →
+        <strong>Smart Search Workflow:</strong><br>
+        • Search uses <em>ripgrep</em> and stores results in Solr<br>
+        • Check "Search in stored results" to search within previous results<br>
+        • Results appear in the main editor panel →
     </div>
     
     <div class="divider"></div>
@@ -205,10 +212,11 @@
         
         const searchInput = document.getElementById('searchInput');
         const searchBtn = document.getElementById('searchBtn');
-        const indexBtn = document.getElementById('indexBtn');
+        const sessionsBtn = document.getElementById('sessionsBtn');
         const caseSensitive = document.getElementById('caseSensitive');
         const wholeWord = document.getElementById('wholeWord');
         const useRegex = document.getElementById('useRegex');
+        const searchInResults = document.getElementById('searchInResults');
         const status = document.getElementById('status');
         
         // Restore state
@@ -238,7 +246,8 @@
             const options = {
                 caseSensitive: caseSensitive.checked,
                 wholeWord: wholeWord.checked,
-                useRegex: useRegex.checked
+                useRegex: useRegex.checked,
+                searchInResults: searchInResults.checked
             };
             
             // Add to history
@@ -251,9 +260,9 @@
             });
         }
         
-        function indexWorkspace() {
+        function loadSessions() {
             vscode.postMessage({
-                type: 'indexWorkspace'
+                type: 'loadSessions'
             });
         }
         
@@ -284,13 +293,40 @@
             }
         }
         
+        function updateSessionsList(sessions) {
+            const historyList = document.getElementById('historyList');
+            const sessionItems = sessions.map(session => 
+                `<div class="history-item" onclick="searchFromHistory('${session}')">📋 ${session}</div>`
+            ).join('');
+            
+            // Show both history and sessions
+            const state = vscode.getState() || {};
+            const history = state.searchHistory || [];
+            const historyItems = history.map(item => 
+                `<div class="history-item" onclick="searchFromHistory('${item}')">${item}</div>`
+            ).join('');
+            
+            historyList.innerHTML = historyItems + sessionItems;
+        }
+        
         function searchFromHistory(query) {
             searchInput.value = query;
             performSearch();
         }
         
+        function updateSessionsList(sessions) {
+            const historyList = document.getElementById('historyList');
+            if (sessions && sessions.length > 0) {
+                historyList.innerHTML = sessions.map(session => 
+                    `<div class="history-item" onclick="searchFromHistory('${session}')">${session}</div>`
+                ).join('');
+            } else {
+                historyList.innerHTML = '<div style="text-align: center; color: var(--vscode-descriptionForeground); font-style: italic;">No stored sessions found</div>';
+            }
+        }
+        
         searchBtn.addEventListener('click', performSearch);
-        indexBtn.addEventListener('click', indexWorkspace);
+        sessionsBtn.addEventListener('click', loadSessions);
         
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -317,18 +353,8 @@
                     setTimeout(hideStatus, 3000);
                     break;
                     
-                case 'indexStarted':
-                    showStatus('Indexing workspace...', 'loading');
-                    break;
-                    
-                case 'indexCompleted':
-                    showStatus('Workspace indexed successfully!', 'success');
-                    setTimeout(hideStatus, 3000);
-                    break;
-                    
-                case 'indexError':
-                    showStatus('Indexing failed: ' + message.error, 'error');
-                    setTimeout(hideStatus, 3000);
+                case 'sessionsLoaded':
+                    updateSessionsList(message.sessions);
                     break;
             }
         });
