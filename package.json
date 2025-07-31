@@ -4,6 +4,14 @@
   "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries",
   "version": "0.0.1",
   "publisher": "AcaciaMan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AcaciaMan/smart-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AcaciaMan/smart-search/issues"
+  },
+  "homepage": "https://github.com/AcaciaMan/smart-search#readme",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -14,7 +22,7 @@
     "onCommand:smart-search.search",
     "onView:smartSearch.searchView"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -72,26 +80,33 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./ && npm run copy-resources",
-    "copy-resources": "xcopy /E /I /Y src\\webview out\\webview && xcopy /E /I /Y resources out\\resources",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "copy-resources": "xcopy /E /I /Y src\\webview dist\\webview && xcopy /E /I /Y resources dist\\resources",
+    "build": "npm run package && npm run copy-resources"
   },
   "devDependencies": {
-    "@types/vscode": "^1.74.0",
-    "@types/node": "16.x",
-    "@types/mocha": "^10.0.1",
     "@types/glob": "^8.0.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^5.45.0",
     "@typescript-eslint/parser": "^5.45.0",
+    "@vscode/test-electron": "^2.2.0",
     "eslint": "^8.28.0",
     "glob": "^8.0.3",
     "mocha": "^10.1.0",
+    "ts-loader": "^9.5.2",
     "typescript": "^4.9.4",
-    "@vscode/test-electron": "^2.2.0"
+    "webpack": "^5.101.0",
+    "webpack-cli": "^6.0.1"
   },
   "dependencies": {
     "axios": "^1.6.0"
