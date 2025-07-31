@@ -1,9 +1,9 @@
 {
-  "name": "smart-search",
-  "displayName": "Smart Search",
+  "name": "smart-search-ripsolr",
+  "displayName": "Smart Search with Ripgrep and Solr",
   "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries",
   "version": "0.0.1",
-  "publisher": "AcaciaMan",
+  "publisher": "manacacia",
   "repository": {
     "type": "git",
     "url": "https://github.com/AcaciaMan/smart-search.git"
