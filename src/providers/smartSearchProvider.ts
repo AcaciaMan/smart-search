@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import { SearchResult, SearchOptions } from '../types';
-import { IndexManager } from '../services/indexManager';
-import { RipgrepSearcher } from '../services/ripgrepSearcher';
-import { AISummaryService } from '../services/aiSummaryService';
+import { IndexManager, RipgrepSearcher, AISummaryService } from '../services';
 
 export class SmartSearchProvider {
   private ripgrepSearcher: RipgrepSearcher;

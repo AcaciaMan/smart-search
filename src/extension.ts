@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { SmartSearchProvider } from './providers/smartSearchProvider';
-import { IndexManager } from './services/indexManager';
+import { IndexManager } from './services';
 import { SearchResultsPanel } from './panels/searchResultsPanel';
 
 export function activate(context: vscode.ExtensionContext) {
