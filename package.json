@@ -12,7 +12,8 @@
   ],
   "activationEvents": [
     "onCommand:smart-search.search",
-    "onCommand:smart-search.indexWorkspace"
+    "onCommand:smart-search.indexWorkspace",
+    "onView:smartSearch.searchView"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -20,12 +21,14 @@
       {
         "command": "smart-search.search",
         "title": "Smart Search",
-        "category": "Smart Search"
+        "category": "Smart Search",
+        "icon": "$(search)"
       },
       {
         "command": "smart-search.indexWorkspace",
         "title": "Index Workspace",
-        "category": "Smart Search"
+        "category": "Smart Search",
+        "icon": "$(database)"
       }
     ],
     "keybindings": [
@@ -35,6 +38,24 @@
         "mac": "cmd+shift+f"
       }
     ],
+    "views": {
+      "smartSearch": [
+        {
+          "id": "smartSearch.searchView",
+          "name": "Search",
+          "type": "webview"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "smartSearch",
+          "title": "Smart Search",
+          "icon": "resources/smart-search-icon.svg"
+        }
+      ]
+    },
     "configuration": {
       "title": "Smart Search",
       "properties": {
@@ -59,7 +80,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && npm run copy-resources",
-    "copy-resources": "xcopy /E /I /Y src\\webview out\\webview",
+    "copy-resources": "xcopy /E /I /Y src\\webview out\\webview && xcopy /E /I /Y resources out\\resources",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",

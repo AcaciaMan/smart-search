@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Search</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-sideBar-background);
+            padding: 16px;
+            margin: 0;
+        }
+        
+        .search-container {
+            margin-bottom: 16px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 4px;
+            font-size: var(--vscode-font-size);
+            outline: none;
+            box-sizing: border-box;
+        }
+        
+        .search-input:focus {
+            border-color: var(--vscode-focusBorder);
+        }
+        
+        .search-options {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .option-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.85em;
+        }
+        
+        .option-checkbox input {
+            margin: 0;
+        }
+        
+        .search-buttons {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn {
+            padding: 6px 12px;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            flex: 1;
+            text-align: center;
+            background: none;
+        }
+        
+        .btn-primary {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .btn-secondary {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border-color: var(--vscode-button-secondaryBackground);
+        }
+        
+        .btn-secondary:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+        
+        .status {
+            margin-top: 12px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
+        .status.loading {
+            background-color: var(--vscode-inputValidation-infoBackground);
+            color: var(--vscode-inputValidation-infoForeground);
+            border: 1px solid var(--vscode-inputValidation-infoBorder);
+        }
+        
+        .status.error {
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: 1px solid var(--vscode-inputValidation-errorBorder);
+        }
+        
+        .status.success {
+            background-color: var(--vscode-inputValidation-warningBackground);
+            color: var(--vscode-inputValidation-warningForeground);
+            border: 1px solid var(--vscode-inputValidation-warningBorder);
+        }
+        
+        .results-info {
+            margin-top: 16px;
+            padding: 8px;
+            background-color: var(--vscode-textCodeBlock-background);
+            border-radius: 4px;
+            font-size: 0.85em;
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .divider {
+            border-top: 1px solid var(--vscode-panel-border);
+            margin: 16px 0;
+        }
+        
+        .search-history {
+            margin-top: 16px;
+        }
+        
+        .search-history h4 {
+            margin: 0 0 8px 0;
+            font-size: 0.9em;
+            color: var(--vscode-foreground);
+        }
+        
+        .history-item {
+            padding: 4px 8px;
+            margin-bottom: 4px;
+            background-color: var(--vscode-input-background);
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: background-color 0.1s ease;
+        }
+        
+        .history-item:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Enter search query..." />
+        
+        <div class="search-options">
+            <label class="option-checkbox">
+                <input type="checkbox" id="caseSensitive" />
+                <span>Case sensitive</span>
+            </label>
+            <label class="option-checkbox">
+                <input type="checkbox" id="wholeWord" />
+                <span>Whole word</span>
+            </label>
+            <label class="option-checkbox">
+                <input type="checkbox" id="useRegex" />
+                <span>Regex</span>
+            </label>
+        </div>
+        
+        <div class="search-buttons">
+            <button id="searchBtn" class="btn btn-primary">🔍 Search</button>
+            <button id="indexBtn" class="btn btn-secondary">📚 Index</button>
+        </div>
+    </div>
+    
+    <div id="status" class="status hidden"></div>
+    
+    <div class="results-info">
+        Results will appear in the main results panel →
+    </div>
+    
+    <div class="divider"></div>
+    
+    <div class="search-history" id="searchHistory">
+        <h4>Recent Searches</h4>
+        <div id="historyList">
+            <div class="history-item" onclick="searchFromHistory('TODO')">TODO</div>
+            <div class="history-item" onclick="searchFromHistory('function')">function</div>
+            <div class="history-item" onclick="searchFromHistory('import')">import</div>
+        </div>
+    </div>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const indexBtn = document.getElementById('indexBtn');
+        const caseSensitive = document.getElementById('caseSensitive');
+        const wholeWord = document.getElementById('wholeWord');
+        const useRegex = document.getElementById('useRegex');
+        const status = document.getElementById('status');
+        
+        // Restore state
+        const state = vscode.getState() || {};
+        if (state.searchHistory) {
+            updateHistoryDisplay(state.searchHistory);
+        }
+        
+        function showStatus(message, type = 'loading') {
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.classList.remove('hidden');
+        }
+        
+        function hideStatus() {
+            status.classList.add('hidden');
+        }
+        
+        function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) {
+                showStatus('Please enter a search query', 'error');
+                setTimeout(hideStatus, 2000);
+                return;
+            }
+            
+            const options = {
+                caseSensitive: caseSensitive.checked,
+                wholeWord: wholeWord.checked,
+                useRegex: useRegex.checked
+            };
+            
+            // Add to history
+            addToHistory(query);
+            
+            vscode.postMessage({
+                type: 'search',
+                query: query,
+                options: options
+            });
+        }
+        
+        function indexWorkspace() {
+            vscode.postMessage({
+                type: 'indexWorkspace'
+            });
+        }
+        
+        function addToHistory(query) {
+            const state = vscode.getState() || {};
+            const history = state.searchHistory || [];
+            
+            // Remove if already exists
+            const filtered = history.filter(item => item !== query);
+            
+            // Add to beginning
+            filtered.unshift(query);
+            
+            // Keep only last 10
+            const newHistory = filtered.slice(0, 10);
+            
+            // Update state
+            vscode.setState({ ...state, searchHistory: newHistory });
+            updateHistoryDisplay(newHistory);
+        }
+        
+        function updateHistoryDisplay(history) {
+            const historyList = document.getElementById('historyList');
+            if (history && history.length > 0) {
+                historyList.innerHTML = history.map(item => 
+                    `<div class="history-item" onclick="searchFromHistory('${item}')">${item}</div>`
+                ).join('');
+            }
+        }
+        
+        function searchFromHistory(query) {
+            searchInput.value = query;
+            performSearch();
+        }
+        
+        searchBtn.addEventListener('click', performSearch);
+        indexBtn.addEventListener('click', indexWorkspace);
+        
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        // Handle messages from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            
+            switch (message.type) {
+                case 'searchStarted':
+                    showStatus('Searching...', 'loading');
+                    break;
+                    
+                case 'searchCompleted':
+                    showStatus(`Found ${message.count} results`, 'success');
+                    setTimeout(hideStatus, 2000);
+                    break;
+                    
+                case 'searchError':
+                    showStatus('Search failed: ' + message.error, 'error');
+                    setTimeout(hideStatus, 3000);
+                    break;
+                    
+                case 'indexStarted':
+                    showStatus('Indexing workspace...', 'loading');
+                    break;
+                    
+                case 'indexCompleted':
+                    showStatus('Workspace indexed successfully!', 'success');
+                    setTimeout(hideStatus, 3000);
+                    break;
+                    
+                case 'indexError':
+                    showStatus('Indexing failed: ' + message.error, 'error');
+                    setTimeout(hideStatus, 3000);
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
