@@ -12,7 +12,6 @@
   ],
   "activationEvents": [
     "onCommand:smart-search.search",
-    "onCommand:smart-search.indexWorkspace",
     "onView:smartSearch.searchView"
   ],
   "main": "./out/extension.js",
@@ -37,7 +36,8 @@
         {
           "id": "smartSearch.searchView",
           "name": "Search",
-          "type": "webview"
+          "type": "webview",
+          "icon": "$(search)"
         }
       ]
     },
