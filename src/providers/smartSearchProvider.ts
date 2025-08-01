@@ -39,7 +39,7 @@ export class SmartSearchProvider {
         
         // Store ripgrep results in Solr for future secondary searches
         if (results.length > 0) {
-          await this.storeResultsInSolr(results, query);
+          await this.storeResultsInSolr(results, query, searchOptions);
         }
       } catch (error) {
         console.error('Ripgrep search failed:', error);
@@ -60,13 +60,15 @@ export class SmartSearchProvider {
   /**
    * Store ripgrep search results in Solr for future secondary searches
    */
-  private async storeResultsInSolr(results: SearchResult[], originalQuery: string): Promise<void> {
+  private async storeResultsInSolr(results: SearchResult[], originalQuery: string, searchOptions: SearchOptions): Promise<string | undefined> {
     try {
-      await this.indexManager.storeSearchResults(results, originalQuery);
-      console.log(`Stored ${results.length} search results in Solr for query: "${originalQuery}"`);
+      const sessionId = await this.indexManager.storeSearchResults(results, originalQuery, searchOptions);
+      console.log(`Stored ${results.length} search results in Solr for query: "${originalQuery}" (Session: ${sessionId})`);
+      return sessionId;
     } catch (error) {
       console.warn('Failed to store search results in Solr:', error);
       // Don't throw - this is not critical for the primary search functionality
+      return undefined;
     }
   }
 
@@ -85,11 +87,39 @@ export class SmartSearchProvider {
   /**
    * Get available search sessions (stored queries) from Solr
    */
-  async getSearchSessions(): Promise<string[]> {
+  async getSearchSessions(): Promise<{ sessionId: string; query: string; timestamp: string; resultCount: number }[]> {
+    try {
+      return await this.indexManager.getSearchSessions();
+    } catch (error) {
+      console.warn('Failed to get search sessions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get stored queries (for backward compatibility)
+   */
+  async getStoredQueries(): Promise<string[]> {
     try {
       return await this.indexManager.getStoredQueries();
     } catch (error) {
-      console.warn('Failed to get search sessions:', error);
+      console.warn('Failed to get stored queries:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Search within a specific session
+   */
+  async searchInSession(sessionId: string, query: string, options?: SearchOptions): Promise<SearchResult[]> {
+    try {
+      const searchOptions: SearchOptions = {
+        query,
+        ...options
+      };
+      return await this.indexManager.searchStoredResults(searchOptions, sessionId);
+    } catch (error) {
+      console.warn('Failed to search in session:', error);
       return [];
     }
   }

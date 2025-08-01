@@ -10,6 +10,7 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'smartSearch.searchView';
   private _view?: vscode.WebviewView;
   private searchProvider: SmartSearchProvider;
+  private latestSessionId?: string; // Track the latest search session
 
   constructor(
     private readonly _extensionUri: vscode.Uri
@@ -43,6 +44,12 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'loadSessions':
           await this.loadSearchSessions();
           break;
+        case 'selectSession':
+          this.selectSession(data.sessionId);
+          break;
+        case 'searchInSession':
+          await this.performSearch(data.query, { ...data.options, searchInResults: true });
+          break;
       }
     });
   }
@@ -59,7 +66,38 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
     });
 
     try {
-      const results = await this.searchProvider.search(query, options);
+      let results: SearchResult[];
+      
+      // Check if this should search in stored results (latest session)
+      if (options.searchInResults && this.latestSessionId) {
+        // Search within the latest session
+        results = await this.searchProvider.searchInSession(this.latestSessionId, query, options);
+        
+        // Notify sidebar this was a session search
+        this._view.webview.postMessage({
+          type: 'sessionSearchInfo',
+          sessionId: this.latestSessionId,
+          message: `Searching in latest session results...`
+        });
+      } else {
+        // Perform fresh ripgrep search
+        results = await this.searchProvider.search(query, options);
+        
+        // Store the session ID from this search for future "search in results"
+        if (results.length > 0) {
+          // Get the latest session (the one we just created)
+          const sessions = await this.searchProvider.getSearchSessions();
+          if (sessions.length > 0) {
+            this.latestSessionId = sessions[0].sessionId; // Most recent session
+            
+            this._view.webview.postMessage({
+              type: 'newSessionCreated',
+              sessionId: this.latestSessionId,
+              resultCount: results.length
+            });
+          }
+        }
+      }
       
       // Create or reuse the results panel
       let resultsPanel = SearchResultsPanel.currentPanel;
@@ -73,11 +111,13 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
       // Notify sidebar of completion
       this._view.webview.postMessage({
         type: 'searchCompleted',
-        count: results.length
+        count: results.length,
+        searchType: options.searchInResults ? 'session' : 'ripgrep'
       });
       
       if (results.length === 0) {
-        vscode.window.showInformationMessage(`No results found for "${query}"`);
+        const searchType = options.searchInResults ? 'stored results' : 'files';
+        vscode.window.showInformationMessage(`No results found for "${query}" in ${searchType}`);
       }
     } catch (error) {
       this._view.webview.postMessage({
@@ -91,15 +131,49 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
 
   private async openFile(file: string, line: number, column: number) {
     try {
-      const document = await vscode.workspace.openTextDocument(file);
+      const filePath = this.normalizeFilePath(file);
+      console.log(`Opening file: "${filePath}" at line ${line}, column ${column}`);
+      
+      const document = await vscode.workspace.openTextDocument(filePath);
       const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
       
       const position = new vscode.Position(Math.max(0, line - 1), Math.max(0, column));
       editor.selection = new vscode.Selection(position, position);
       editor.revealRange(new vscode.Range(position, position));
     } catch (error) {
+      console.error('Failed to open file:', error);
+      console.error('Original file path:', file);
       vscode.window.showErrorMessage(`Failed to open file: ${error}`);
     }
+  }
+
+  private normalizeFilePath(file: string): string {
+    let filePath = file;
+    
+    // Handle URI encoded paths
+    if (filePath.includes('%')) {
+      try {
+        filePath = decodeURIComponent(filePath);
+      } catch (decodeError) {
+        console.warn('Failed to decode URI components:', decodeError);
+      }
+    }
+    
+    // Remove file:// protocol if present
+    if (filePath.startsWith('file://')) {
+      filePath = filePath.substring(7);
+      // On Windows, remove the extra slash after file://
+      if (process.platform === 'win32' && filePath.startsWith('/')) {
+        filePath = filePath.substring(1);
+      }
+    }
+    
+    // Normalize path separators for Windows
+    if (process.platform === 'win32') {
+      filePath = filePath.replace(/\//g, '\\');
+    }
+    
+    return filePath;
   }
 
   private async loadSearchSessions() {
@@ -112,10 +186,22 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
       
       this._view.webview.postMessage({
         type: 'sessionsLoaded',
-        sessions: sessions
+        sessions: sessions,
+        latestSessionId: this.latestSessionId
       });
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to load search sessions: ${error}`);
+    }
+  }
+
+  private selectSession(sessionId: string) {
+    this.latestSessionId = sessionId;
+    
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'sessionSelected',
+        sessionId: sessionId
+      });
     }
   }
 

@@ -144,17 +144,22 @@
         }
         
         .history-item {
-            padding: 4px 8px;
+            padding: 8px;
             margin-bottom: 4px;
             background-color: var(--vscode-input-background);
             border-radius: 3px;
             cursor: pointer;
             font-size: 0.85em;
             transition: background-color 0.1s ease;
+            line-height: 1.4;
         }
         
         .history-item:hover {
             background-color: var(--vscode-list-hoverBackground);
+        }
+
+        .history-item small {
+            font-size: 0.75em;
         }
     </style>
 </head>
@@ -192,7 +197,7 @@
     <div class="results-info">
         <strong>Smart Search Workflow:</strong><br>
         • Search uses <em>ripgrep</em> and stores results in Solr<br>
-        • Check "Search in stored results" to search within previous results<br>
+        • Check "Search in stored results" to search within <span id="sessionInfo">latest session</span><br>
         • Results appear in the main editor panel →
     </div>
     
@@ -293,36 +298,45 @@
             }
         }
         
-        function updateSessionsList(sessions) {
-            const historyList = document.getElementById('historyList');
-            const sessionItems = sessions.map(session => 
-                `<div class="history-item" onclick="searchFromHistory('${session}')">📋 ${session}</div>`
-            ).join('');
-            
-            // Show both history and sessions
-            const state = vscode.getState() || {};
-            const history = state.searchHistory || [];
-            const historyItems = history.map(item => 
-                `<div class="history-item" onclick="searchFromHistory('${item}')">${item}</div>`
-            ).join('');
-            
-            historyList.innerHTML = historyItems + sessionItems;
-        }
-        
-        function searchFromHistory(query) {
-            searchInput.value = query;
-            performSearch();
-        }
-        
-        function updateSessionsList(sessions) {
+        function updateSessionsList(sessions, latestSessionId) {
             const historyList = document.getElementById('historyList');
             if (sessions && sessions.length > 0) {
-                historyList.innerHTML = sessions.map(session => 
-                    `<div class="history-item" onclick="searchFromHistory('${session}')">${session}</div>`
+                // Display sessions with timestamp and result count
+                const sessionItems = sessions.map(session => {
+                    const isLatest = session.sessionId === latestSessionId ? ' (Latest)' : '';
+                    const timestamp = new Date(session.timestamp).toLocaleString();
+                    return `<div class="history-item" onclick="selectSession('${session.sessionId}')" title="Click to select as target for 'Search in stored results'">
+                        📋 ${session.query}${isLatest}<br>
+                        <small style="color: var(--vscode-descriptionForeground);">${timestamp} • ${session.resultCount} results</small>
+                    </div>`;
+                }).join('');
+                
+                // Also show recent search history
+                const state = vscode.getState() || {};
+                const history = state.searchHistory || [];
+                const historyItems = history.map(item => 
+                    `<div class="history-item" onclick="searchFromHistory('${item}')" title="Search again">🔍 ${item}</div>`
                 ).join('');
+                
+                // Combine with divider
+                historyList.innerHTML = historyItems + 
+                    (historyItems && sessionItems ? '<div style="border-top: 1px solid var(--vscode-panel-border); margin: 8px 0;"></div>' : '') + 
+                    sessionItems;
             } else {
                 historyList.innerHTML = '<div style="text-align: center; color: var(--vscode-descriptionForeground); font-style: italic;">No stored sessions found</div>';
             }
+        }
+
+        function selectSession(sessionId) {
+            vscode.postMessage({
+                type: 'selectSession',
+                sessionId: sessionId
+            });
+        }
+
+        function searchFromHistory(query) {
+            searchInput.value = query;
+            performSearch();
         }
         
         searchBtn.addEventListener('click', performSearch);
@@ -344,7 +358,8 @@
                     break;
                     
                 case 'searchCompleted':
-                    showStatus(`Found ${message.count} results`, 'success');
+                    const searchType = message.searchType === 'session' ? 'in stored results' : 'in files';
+                    showStatus(`Found ${message.count} results ${searchType}`, 'success');
                     setTimeout(hideStatus, 2000);
                     break;
                     
@@ -354,7 +369,23 @@
                     break;
                     
                 case 'sessionsLoaded':
-                    updateSessionsList(message.sessions);
+                    updateSessionsList(message.sessions, message.latestSessionId);
+                    break;
+                    
+                case 'sessionSelected':
+                    const sessionInfo = document.getElementById('sessionInfo');
+                    sessionInfo.textContent = `session ${message.sessionId.substring(0, 8)}...`;
+                    showStatus('Session selected for "Search in stored results"', 'success');
+                    setTimeout(hideStatus, 2000);
+                    break;
+                    
+                case 'newSessionCreated':
+                    const sessionInfoEl = document.getElementById('sessionInfo');
+                    sessionInfoEl.textContent = `latest session (${message.resultCount} results)`;
+                    break;
+                    
+                case 'sessionSearchInfo':
+                    showStatus(message.message, 'loading');
                     break;
             }
         });

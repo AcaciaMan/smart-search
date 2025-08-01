@@ -55,15 +55,49 @@ export class SearchResultsPanel {
 
   private async openFile(file: string, line: number, column: number) {
     try {
-      const document = await vscode.workspace.openTextDocument(file);
+      const filePath = this.normalizeFilePath(file);
+      console.log(`Opening file from results panel: "${filePath}" at line ${line}, column ${column}`);
+      
+      const document = await vscode.workspace.openTextDocument(filePath);
       const editor = await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
       
       const position = new vscode.Position(Math.max(0, line - 1), Math.max(0, column));
       editor.selection = new vscode.Selection(position, position);
       editor.revealRange(new vscode.Range(position, position));
     } catch (error) {
+      console.error('Failed to open file from results panel:', error);
+      console.error('Original file path:', file);
       vscode.window.showErrorMessage(`Failed to open file: ${error}`);
     }
+  }
+
+  private normalizeFilePath(file: string): string {
+    let filePath = file;
+    
+    // Handle URI encoded paths
+    if (filePath.includes('%')) {
+      try {
+        filePath = decodeURIComponent(filePath);
+      } catch (decodeError) {
+        console.warn('Failed to decode URI components:', decodeError);
+      }
+    }
+    
+    // Remove file:// protocol if present
+    if (filePath.startsWith('file://')) {
+      filePath = filePath.substring(7);
+      // On Windows, remove the extra slash after file://
+      if (process.platform === 'win32' && filePath.startsWith('/')) {
+        filePath = filePath.substring(1);
+      }
+    }
+    
+    // Normalize path separators for Windows
+    if (process.platform === 'win32') {
+      filePath = filePath.replace(/\//g, '\\');
+    }
+    
+    return filePath;
   }
 
   private getWebviewContent(results: SearchResult[]): string {
@@ -103,8 +137,11 @@ export class SearchResultsPanel {
     const fileExtension = path.extname(result.file).substring(1).toUpperCase() || 'TXT';
     const relativePath = this.getRelativePath(result.file);
     
+    // Properly escape the file path for JSON to avoid issues with special characters
+    const escapedFilePath = JSON.stringify(result.file);
+    
     return `
-      <div class="result" onclick="openFile('${this.escapeHtml(result.file)}', ${result.line}, ${result.column})" tabindex="-1">
+      <div class="result" onclick="openFile(${escapedFilePath}, ${result.line}, ${result.column})" tabindex="-1">
         <div class="file-path">${this.escapeHtml(relativePath)}</div>
         <div class="line-info">Line ${result.line}, Column ${result.column}</div>
         <div class="content">${this.escapeHtml(result.content)}</div>
