@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Solr schema for storing ripgrep search results
+ This schema is optimized for storing and searching ripgrep output with context
+-->
+<schema name="smart-search-results" version="1.6">
+
+  <!-- Field Types -->
+  
+  <!-- String field type for exact matches, not tokenized -->
+  <fieldType name="string" class="solr.StrField" sortMissingLast="true" docValues="true"/>
+  
+  <!-- Text field type for full-text search with standard analysis -->
+  <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100" multiValued="true">
+    <analyzer type="index">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+    <analyzer type="query">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
+
+  <!-- Text field for code analysis with programming-aware tokenization -->
+  <fieldType name="text_code" class="solr.TextField" positionIncrementGap="100">
+    <analyzer type="index">
+      <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+      <filter class="solr.WordDelimiterFilterFactory" 
+              generateWordParts="1" 
+              generateNumberParts="1" 
+              catenateWords="1" 
+              catenateNumbers="1" 
+              catenateAll="0" 
+              splitOnCaseChange="1" 
+              preserveOriginal="1"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+    <analyzer type="query">
+      <tokenizer class="solr.WhitespaceTokenizerFactory"/>
+      <filter class="solr.WordDelimiterFilterFactory" 
+              generateWordParts="1" 
+              generateNumberParts="1" 
+              catenateWords="0" 
+              catenateNumbers="0" 
+              catenateAll="0" 
+              splitOnCaseChange="1"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
+
+  <!-- Integer field -->
+  <fieldType name="pint" class="solr.IntPointField" docValues="true"/>
+  
+  <!-- Long field -->
+  <fieldType name="plong" class="solr.LongPointField" docValues="true"/>
+  
+  <!-- Date field -->
+  <fieldType name="pdate" class="solr.DatePointField" docValues="true"/>
+  
+  <!-- Boolean field -->
+  <fieldType name="boolean" class="solr.BoolField" sortMissingLast="true"/>
+
+  <!-- Fields -->
+  
+  <!-- Required Solr field -->
+  <field name="_version_" type="plong" indexed="false" stored="false"/>
+  
+  <!-- Unique identifier for each search result -->
+  <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false"/>
+  
+  <!-- Search session information -->
+  <field name="search_session_id" type="string" indexed="true" stored="true" required="true"/>
+  <field name="original_query" type="text_general" indexed="true" stored="true" required="true"/>
+  <field name="search_timestamp" type="pdate" indexed="true" stored="true" required="true"/>
+  <field name="workspace_path" type="string" indexed="true" stored="true" required="true"/>
+  
+  <!-- File information -->
+  <field name="file_path" type="string" indexed="true" stored="true" required="true"/>
+  <field name="file_name" type="string" indexed="true" stored="true" required="true"/>
+  <field name="file_extension" type="string" indexed="true" stored="true"/>
+  <field name="file_size" type="plong" indexed="true" stored="true"/>
+  <field name="file_modified" type="pdate" indexed="true" stored="true"/>
+  
+  <!-- Match information -->
+  <field name="line_number" type="pint" indexed="true" stored="true" required="true"/>
+  <field name="column_number" type="pint" indexed="true" stored="true"/>
+  <field name="match_text" type="text_code" indexed="true" stored="true" required="true"/>
+  <field name="match_text_raw" type="string" indexed="false" stored="true" required="true"/>
+  
+  <!-- Context information -->
+  <field name="context_before" type="text_code" indexed="true" stored="true" multiValued="true"/>
+  <field name="context_after" type="text_code" indexed="true" stored="true" multiValued="true"/>
+  <field name="context_lines_before" type="pint" indexed="true" stored="true" default="0"/>
+  <field name="context_lines_after" type="pint" indexed="true" stored="true" default="0"/>
+  
+  <!-- Full line content -->
+  <field name="full_line" type="text_code" indexed="true" stored="true" required="true"/>
+  <field name="full_line_raw" type="string" indexed="false" stored="true" required="true"/>
+  
+  <!-- Search metadata -->
+  <field name="match_type" type="string" indexed="true" stored="true"/> <!-- literal, regex, etc. -->
+  <field name="case_sensitive" type="boolean" indexed="true" stored="true" default="false"/>
+  <field name="whole_word" type="boolean" indexed="true" stored="true" default="false"/>
+  
+  <!-- Relevance and ranking -->
+  <field name="relevance_score" type="plong" indexed="true" stored="true"/>
+  <field name="match_count_in_file" type="pint" indexed="true" stored="true"/>
+  
+  <!-- AI summary information (if available) -->
+  <field name="ai_summary" type="text_general" indexed="true" stored="true"/>
+  <field name="ai_tags" type="string" indexed="true" stored="true" multiValued="true"/>
+  
+  <!-- Combined search field for general queries -->
+  <field name="content_all" type="text_general" indexed="true" stored="false" multiValued="true"/>
+  <field name="code_all" type="text_code" indexed="true" stored="false" multiValued="true"/>
+
+  <!-- Copy fields to combine content for searching -->
+  <copyField source="match_text" dest="content_all"/>
+  <copyField source="full_line" dest="content_all"/>
+  <copyField source="context_before" dest="content_all"/>
+  <copyField source="context_after" dest="content_all"/>
+  <copyField source="file_name" dest="content_all"/>
+  <copyField source="file_path" dest="content_all"/>
+  <copyField source="ai_summary" dest="content_all"/>
+  
+  <copyField source="match_text" dest="code_all"/>
+  <copyField source="full_line" dest="code_all"/>
+  <copyField source="context_before" dest="code_all"/>
+  <copyField source="context_after" dest="code_all"/>
+
+  <!-- Unique key -->
+  <uniqueKey>id</uniqueKey>
+
+  <!-- Similarity configuration -->
+  <similarity class="solr.SchemaSimilarityFactory"/>
+
+</schema>

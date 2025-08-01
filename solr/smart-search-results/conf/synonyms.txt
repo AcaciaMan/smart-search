@@ -1,0 +1,18 @@
+# Programming-related synonyms for better code search
+function,func,method,procedure
+variable,var,field,property
+class,interface,struct,type
+import,include,require,using
+export,public,external
+private,internal,protected
+return,yield,output
+null,nil,none,undefined
+true,yes,on,enabled
+false,no,off,disabled
+error,exception,failure,fault
+debug,log,trace,info
+test,spec,unit,check
+config,configuration,settings,options
+params,parameters,arguments,args
+request,req,query
+response,res,reply,result
