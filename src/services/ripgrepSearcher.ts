@@ -26,7 +26,7 @@ export class RipgrepSearcher {
         '--line-number',
         '--column',
         '--with-filename',
-        '--context', '2'
+        '--context', (options.contextLines || 2).toString()
       ];
 
       if (!options.caseSensitive) {

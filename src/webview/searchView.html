@@ -89,6 +89,35 @@
             background-color: var(--vscode-button-secondaryHoverBackground);
         }
         
+        .btn-tertiary {
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-input-foreground);
+            border-color: var(--vscode-input-border);
+            font-size: 0.8em;
+            padding: 4px 8px;
+            flex: none;
+        }
+        
+        .btn-tertiary:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .persisted-settings-info {
+            margin-top: 8px;
+            padding: 6px 8px;
+            background-color: var(--vscode-inputValidation-infoBackground);
+            border: 1px solid var(--vscode-inputValidation-infoBorder);
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .settings-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
         .status {
             margin-top: 12px;
             padding: 8px;
@@ -189,6 +218,11 @@
         <div class="search-buttons">
             <button id="searchBtn" class="btn btn-primary">🔍 Search</button>
             <button id="sessionsBtn" class="btn btn-secondary">📋 Sessions</button>
+            <button id="clearSettingsBtn" class="btn btn-tertiary hidden" title="Clear persisted search settings">⚙️ Clear Settings</button>
+        </div>
+        
+        <div id="persistedSettingsInfo" class="persisted-settings-info hidden">
+            <span class="settings-indicator">⚙️ Using custom search settings from results panel</span>
         </div>
     </div>
     
@@ -342,10 +376,33 @@
         searchBtn.addEventListener('click', performSearch);
         sessionsBtn.addEventListener('click', loadSessions);
         
+        const clearSettingsBtn = document.getElementById('clearSettingsBtn');
+        clearSettingsBtn.addEventListener('click', () => {
+            vscode.postMessage({
+                type: 'clearPersistedSettings'
+            });
+            hidePersistedSettingsIndicator();
+        });
+        
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 performSearch();
             }
+        });
+        
+        function showPersistedSettingsIndicator() {
+            document.getElementById('persistedSettingsInfo').classList.remove('hidden');
+            document.getElementById('clearSettingsBtn').classList.remove('hidden');
+        }
+        
+        function hidePersistedSettingsIndicator() {
+            document.getElementById('persistedSettingsInfo').classList.add('hidden');
+            document.getElementById('clearSettingsBtn').classList.add('hidden');
+        }
+        
+        // Check for persisted settings on load
+        vscode.postMessage({
+            type: 'checkPersistedSettings'
         });
         
         // Handle messages from extension
@@ -386,6 +443,14 @@
                     
                 case 'sessionSearchInfo':
                     showStatus(message.message, 'loading');
+                    break;
+                    
+                case 'persistedSettingsStatus':
+                    if (message.hasSettings) {
+                        showPersistedSettingsIndicator();
+                    } else {
+                        hidePersistedSettingsIndicator();
+                    }
                     break;
             }
         });

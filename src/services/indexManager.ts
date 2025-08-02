@@ -159,7 +159,98 @@ export class IndexManager {
         };
       });
     } catch (error) {
-      console.error('Search in stored results failed:', error);
+      console.error('Error searching stored results:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search within previously stored ripgrep results and return detailed StoredSearchResult objects
+   */
+  async searchStoredResultsDetailed(options: SearchOptions, sessionId?: string): Promise<StoredSearchResult[]> {
+    try {
+      console.log(`Searching stored results for query: "${options.query}" in session: ${sessionId || 'any'}`);
+      
+      const queryParams: any = {
+        q: `content_all:(${options.query}) OR code_all:(${options.query})`,
+        rows: options.maxResults || 100,
+        wt: 'json',
+        hl: 'true',
+        'hl.fl': 'match_text,full_line,context_before,context_after',
+        'hl.simple.pre': '<mark>',
+        'hl.simple.post': '</mark>',
+        sort: 'relevance_score desc, search_timestamp desc',
+        fl: '*,score'
+      };
+
+      // Filter by session if provided
+      if (sessionId) {
+        queryParams.fq = `search_session_id:${sessionId}`;
+        console.log(`Filtering by session ID: ${sessionId}`);
+      }
+
+      // Apply search options as filters
+      if (options.caseSensitive !== undefined) {
+        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `case_sensitive:${options.caseSensitive}`;
+      }
+
+      if (options.wholeWord !== undefined) {
+        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `whole_word:${options.wholeWord}`;
+      }
+
+      console.log(`Solr query parameters:`, queryParams);
+
+      const response = await axios.get(`${this.solrUrl}/smart-search-results/search`, {
+        params: queryParams
+      });
+
+      const docs = response.data.response.docs;
+      const highlighting = response.data.highlighting || {};
+
+      console.log(`Found ${docs.length} stored results in Solr`);
+
+      return docs.map((doc: any): StoredSearchResult => {
+        // Get highlighted content if available
+        const docHighlighting = highlighting[doc.id] || {};
+        const highlightedContent = docHighlighting.match_text?.[0] || 
+                                 docHighlighting.full_line?.[0] || 
+                                 doc.match_text;
+
+        return {
+          id: doc.id,
+          search_session_id: doc.search_session_id,
+          original_query: doc.original_query,
+          search_timestamp: doc.search_timestamp,
+          workspace_path: doc.workspace_path,
+          file_path: doc.file_path,
+          file_name: doc.file_name,
+          file_extension: doc.file_extension,
+          file_size: doc.file_size,
+          file_modified: doc.file_modified,
+          line_number: doc.line_number,
+          column_number: doc.column_number,
+          match_text: highlightedContent,
+          match_text_raw: doc.match_text_raw,
+          context_before: doc.context_before || [],
+          context_after: doc.context_after || [],
+          context_lines_before: doc.context_lines_before,
+          context_lines_after: doc.context_lines_after,
+          full_line: doc.full_line,
+          full_line_raw: doc.full_line_raw,
+          match_type: doc.match_type,
+          case_sensitive: doc.case_sensitive,
+          whole_word: doc.whole_word,
+          relevance_score: doc.relevance_score,
+          match_count_in_file: doc.match_count_in_file,
+          ai_summary: doc.ai_summary,
+          ai_tags: doc.ai_tags || []
+        };
+      });
+    } catch (error) {
+      console.error('Error searching stored results:', error);
+      if (error instanceof Error && (error as any).code === 'ECONNREFUSED') {
+        throw new Error('Solr server is not running. Please start Solr and try again.');
+      }
       throw error;
     }
   }

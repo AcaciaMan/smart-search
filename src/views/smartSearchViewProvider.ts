@@ -3,8 +3,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { SmartSearchProvider } from '../providers/smartSearchProvider';
 import { IndexManager } from '../services';
-import { SearchResult } from '../types';
-import { SearchResultsPanel } from '../panels/searchResultsPanel';
+import { SearchResult, SearchOptions } from '../types';
+import { RipgrepResultsPanel } from '../panels/ripgrepResultsPanel';
+import { SolrResultsPanel } from '../panels/solrResultsPanel';
 
 export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'smartSearch.searchView';
@@ -50,6 +51,12 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'searchInSession':
           await this.performSearch(data.query, { ...data.options, searchInResults: true });
           break;
+        case 'checkPersistedSettings':
+          this.checkPersistedSettings();
+          break;
+        case 'clearPersistedSettings':
+          this.clearPersistedSettings();
+          break;
       }
     });
   }
@@ -67,6 +74,7 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
 
     try {
       let results: SearchResult[];
+      let effectiveSearchOptions: SearchOptions | undefined;
       
       // Check if this should search in stored results (latest session)
       if (options.searchInResults && this.latestSessionId) {
@@ -80,8 +88,26 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           message: `Searching in latest session results...`
         });
       } else {
+        // Get persisted settings from RipgrepResultsPanel if available
+        const persistedSettings = RipgrepResultsPanel.getPersistedSettings();
+        
+        // Merge persisted settings with current options
+        effectiveSearchOptions = {
+          query,
+          maxResults: persistedSettings?.maxResults || options.maxResults || 100,
+          contextLines: persistedSettings?.contextLines || options.contextLines || 2,
+          includePatterns: persistedSettings?.includePatterns || options.includePatterns,
+          excludePatterns: persistedSettings?.excludePatterns || options.excludePatterns,
+          caseSensitive: persistedSettings?.caseSensitive || options.caseSensitive || false,
+          wholeWord: persistedSettings?.wholeWord || options.wholeWord || false,
+          useRegex: persistedSettings?.useRegex || options.useRegex || false,
+          searchInResults: options.searchInResults || false
+        };
+        
+        console.log('Performing fresh search with merged settings:', effectiveSearchOptions);
+        
         // Perform fresh ripgrep search
-        results = await this.searchProvider.search(query, options);
+        results = await this.searchProvider.search(query, effectiveSearchOptions);
         
         // Store the session ID from this search for future "search in results"
         if (results.length > 0) {
@@ -99,21 +125,62 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         }
       }
       
-      // Create or reuse the results panel
-      let resultsPanel = SearchResultsPanel.currentPanel;
-      if (!resultsPanel) {
-        resultsPanel = new SearchResultsPanel(this._extensionUri);
+      // Show results in appropriate panel based on search type
+      if (options.searchInResults) {
+        // Check if we have a valid session to search in
+        if (!this.latestSessionId) {
+          vscode.window.showWarningMessage('No search session available. Please perform a regular search first to create indexed results.');
+          return;
+        }
+        
+        // For session search, use SolrResultsPanel with stored results
+        const indexManager = new IndexManager();
+        const storedResults = await indexManager.searchStoredResultsDetailed({ query }, this.latestSessionId);
+        
+        if (storedResults.length === 0) {
+          // Check if the session actually exists
+          const sessions = await indexManager.getSearchSessions();
+          const currentSession = sessions.find(s => s.sessionId === this.latestSessionId);
+          
+          if (!currentSession) {
+            vscode.window.showWarningMessage(`Search session "${this.latestSessionId}" not found. Please perform a new search.`);
+            this.latestSessionId = undefined; // Reset invalid session
+            return;
+          } else {
+            vscode.window.showInformationMessage(`No results found for "${query}" in session "${this.latestSessionId}" (${currentSession.resultCount} total results in session).`);
+          }
+        }
+        
+        let solrPanel = SolrResultsPanel.currentPanel;
+        if (!solrPanel) {
+          solrPanel = SolrResultsPanel.create(this._extensionUri);
+        }
+        
+        solrPanel.show(storedResults, query, this.latestSessionId);
+        
+        // Notify sidebar of completion with correct count
+        this._view.webview.postMessage({
+          type: 'searchCompleted',
+          count: storedResults.length,
+          searchType: 'session'
+        });
+      } else {
+        // For ripgrep search, use RipgrepResultsPanel
+        let ripgrepPanel = RipgrepResultsPanel.currentPanel;
+        if (!ripgrepPanel) {
+          ripgrepPanel = RipgrepResultsPanel.create(this._extensionUri);
+        }
+        
+        // Pass the effective search options that were used for the search
+        ripgrepPanel.show(results, query, effectiveSearchOptions);
+        
+        // Notify sidebar of completion
+        this._view.webview.postMessage({
+          type: 'searchCompleted',
+          count: results.length,
+          searchType: 'ripgrep'
+        });
       }
-      
-      // Show results in the panel
-      resultsPanel.show(results);
-      
-      // Notify sidebar of completion
-      this._view.webview.postMessage({
-        type: 'searchCompleted',
-        count: results.length,
-        searchType: options.searchInResults ? 'session' : 'ripgrep'
-      });
       
       if (results.length === 0) {
         const searchType = options.searchInResults ? 'stored results' : 'files';
@@ -203,6 +270,32 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         sessionId: sessionId
       });
     }
+  }
+
+  private checkPersistedSettings() {
+    if (!this._view) {
+      return;
+    }
+
+    const hasSettings = RipgrepResultsPanel.getPersistedSettings() !== undefined;
+    
+    this._view.webview.postMessage({
+      type: 'persistedSettingsStatus',
+      hasSettings: hasSettings
+    });
+  }
+
+  private clearPersistedSettings() {
+    if (!this._view) {
+      return;
+    }
+
+    RipgrepResultsPanel.clearPersistedSettings();
+    
+    this._view.webview.postMessage({
+      type: 'persistedSettingsStatus',
+      hasSettings: false
+    });
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {

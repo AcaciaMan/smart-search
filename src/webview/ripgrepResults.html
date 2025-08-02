@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ripgrep Search Results</title>
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      padding: 20px;
+      margin: 0;
+    }
+    .header {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .results-count {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+      margin-bottom: 10px;
+    }
+    .result-item {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 10px;
+      background-color: var(--vscode-editorWidget-background);
+    }
+    .result-header {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .result-header:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .file-path {
+      color: var(--vscode-textLink-foreground);
+      text-decoration: none;
+    }
+    .line-info {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+    }
+    .result-content {
+      padding: 12px;
+    }
+    .match-text {
+      background-color: var(--vscode-editor-findMatchHighlightBackground);
+      color: var(--vscode-editor-findMatchForeground);
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+    .context-line {
+      margin: 2px 0;
+      font-family: var(--vscode-editor-font-family);
+      font-size: var(--vscode-editor-font-size);
+      line-height: 1.4;
+    }
+    .context-line-number {
+      color: var(--vscode-editorLineNumber-foreground);
+      width: 40px;
+      display: inline-block;
+      text-align: right;
+      margin-right: 10px;
+      font-size: 0.9em;
+    }
+    .summary {
+      background-color: var(--vscode-textBlockQuote-background);
+      border-left: 4px solid var(--vscode-textBlockQuote-border);
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+    }
+    .no-results {
+      text-align: center;
+      color: var(--vscode-descriptionForeground);
+      padding: 40px;
+      font-style: italic;
+    }
+    .ripgrep-badge {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      padding: 2px 6px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    .query-info {
+      background-color: var(--vscode-textBlockQuote-background);
+      border: 1px solid var(--vscode-textBlockQuote-border);
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    .query-text {
+      font-family: var(--vscode-editor-font-family);
+      background-color: var(--vscode-input-background);
+      padding: 4px 8px;
+      border-radius: 2px;
+      border: 1px solid var(--vscode-input-border);
+    }
+    .settings-panel {
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      overflow: hidden;
+    }
+    .settings-header {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .settings-header:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .settings-content {
+      padding: 12px;
+      display: none;
+    }
+    .settings-content.expanded {
+      display: block;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .settings-row:last-child {
+      margin-bottom: 0;
+    }
+    .settings-label {
+      min-width: 120px;
+      color: var(--vscode-foreground);
+      font-size: 0.9em;
+    }
+    .settings-input {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      color: var(--vscode-input-foreground);
+      padding: 4px 8px;
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 0.9em;
+      min-width: 200px;
+    }
+    .settings-input:focus {
+      border-color: var(--vscode-focusBorder);
+      outline: none;
+    }
+    .settings-number {
+      width: 80px;
+      min-width: 80px;
+    }
+    .settings-checkbox {
+      accent-color: var(--vscode-checkbox-background);
+    }
+    .settings-button {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: var(--vscode-font-family);
+      font-size: 0.9em;
+    }
+    .settings-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    .settings-button:disabled {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      cursor: not-allowed;
+    }
+    .collapse-icon {
+      transition: transform 0.2s ease;
+    }
+    .collapse-icon.expanded {
+      transform: rotate(90deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>
+      <span class="ripgrep-badge">RIPGREP</span>
+      Search Results
+    </h2>
+    <div class="query-info">
+      <strong>Query:</strong> <span class="query-text" id="search-query"></span>
+    </div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel">
+      <div class="settings-header" onclick="toggleSettings()">
+        <span>Search Settings</span>
+        <span class="collapse-icon" id="settings-icon">▶</span>
+      </div>
+      <div class="settings-content" id="settings-content">
+        <div class="settings-row">
+          <label class="settings-label">Context Lines:</label>
+          <input type="number" id="context-lines" class="settings-input settings-number" value="2" min="0" max="10">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Include Files:</label>
+          <input type="text" id="include-patterns" class="settings-input" 
+                 placeholder="e.g., *.js,*.ts,*.py" title="Comma-separated glob patterns">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Exclude Files:</label>
+          <input type="text" id="exclude-patterns" class="settings-input" 
+                 placeholder="e.g., node_modules,*.log" title="Comma-separated glob patterns">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Max Results:</label>
+          <input type="number" id="max-results" class="settings-input settings-number" value="100" min="1" max="1000">
+        </div>
+        <div class="settings-row">
+          <button class="settings-button" onclick="applySettings()" id="apply-button">Apply Settings</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="results-count" id="results-count">Found 0 results</div>
+  </div>
+  <div id="results-container"></div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    let currentQuery = '';
+    let currentSettings = {
+      contextLines: 2,
+      includePatterns: [],
+      excludePatterns: [],
+      maxResults: 100
+    };
+    
+    function openFile(file, line, column) {
+      vscode.postMessage({
+        command: 'openFile',
+        file: file,
+        line: line,
+        column: column
+      });
+    }
+
+    function toggleSettings() {
+      const content = document.getElementById('settings-content');
+      const icon = document.getElementById('settings-icon');
+      
+      if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        icon.classList.remove('expanded');
+      } else {
+        content.classList.add('expanded');
+        icon.classList.add('expanded');
+      }
+    }
+
+    function applySettings() {
+      const contextLines = parseInt(document.getElementById('context-lines').value) || 2;
+      const includePatterns = parsePatterns(document.getElementById('include-patterns').value);
+      const excludePatterns = parsePatterns(document.getElementById('exclude-patterns').value);
+      const maxResults = parseInt(document.getElementById('max-results').value) || 100;
+
+      currentSettings = {
+        contextLines,
+        includePatterns,
+        excludePatterns,
+        maxResults
+      };
+
+      // Disable button while searching
+      const button = document.getElementById('apply-button');
+      button.disabled = true;
+      button.textContent = 'Searching...';
+
+      vscode.postMessage({
+        command: 'searchWithSettings',
+        query: currentQuery,
+        settings: currentSettings
+      });
+    }
+
+    function parsePatterns(input) {
+      if (!input || !input.trim()) return [];
+      return input.split(',').map(p => p.trim()).filter(p => p.length > 0);
+    }
+
+    function updateSettingsUI(settings) {
+      document.getElementById('context-lines').value = settings.contextLines || 2;
+      document.getElementById('include-patterns').value = (settings.includePatterns || []).join(', ');
+      document.getElementById('exclude-patterns').value = (settings.excludePatterns || []).join(', ');
+      document.getElementById('max-results').value = settings.maxResults || 100;
+    }
+
+    function enableApplyButton() {
+      const button = document.getElementById('apply-button');
+      button.disabled = false;
+      button.textContent = 'Apply Settings';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderResults(data) {
+      const { results, query, settings } = data;
+      
+      // Update header and settings
+      currentQuery = query;
+      if (settings) {
+        currentSettings = settings;
+        updateSettingsUI(settings);
+      }
+      
+      document.getElementById('search-query').textContent = query;
+      document.getElementById('results-count').textContent = 
+        `Found ${results.length} result${results.length !== 1 ? 's' : ''}`;
+
+      // Re-enable apply button
+      enableApplyButton();
+
+      // Render results
+      const container = document.getElementById('results-container');
+      
+      if (results.length === 0) {
+        container.innerHTML = '<div class="no-results">No results found</div>';
+        return;
+      }
+
+      container.innerHTML = results.map(result => `
+        <div class="result-item">
+          <div class="result-header" onclick="openFile(${JSON.stringify(result.file)}, ${result.line}, ${result.column})">
+            <span class="file-path">${escapeHtml(result.file)}</span>
+            <span class="line-info">Line ${result.line}, Column ${result.column}</span>
+          </div>
+          <div class="result-content">
+            ${getResultContent(result)}
+            ${result.summary ? `<div class="summary">${escapeHtml(result.summary)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getResultContent(result) {
+      const contextLines = result.context || [];
+      const matchLineIndex = Math.floor(contextLines.length / 2);
+      
+      return contextLines.map((line, index) => {
+        const lineNumber = result.line - matchLineIndex + index;
+        const isMatchLine = index === matchLineIndex;
+        
+        let displayLine = escapeHtml(line);
+        if (isMatchLine && result.content) {
+          try {
+            const matchText = escapeHtml(result.content);
+            
+            // If match text contains HTML entities or special chars, just mark the whole line
+            if (matchText.includes('&') || matchText.includes('<') || matchText.includes('>')) {
+              displayLine = `<span class="match-text">${displayLine}</span>`;
+            } else {
+              // Safe to use regex for simple text
+              const escapedMatch = matchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              displayLine = displayLine.replace(
+                new RegExp(escapedMatch, 'gi'),
+                `<span class="match-text">${matchText}</span>`
+              );
+            }
+          } catch (regexError) {
+            console.warn('Regex error in match highlighting:', regexError);
+            // Fallback: highlight entire line
+            displayLine = `<span class="match-text">${displayLine}</span>`;
+          }
+        }
+        
+        return `
+          <div class="context-line">
+            <span class="context-line-number">${lineNumber}</span>
+            ${displayLine}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Listen for messages from the extension
+    window.addEventListener('message', event => {
+      const message = event.data;
+      switch (message.command) {
+        case 'updateResults':
+          renderResults(message.data);
+          break;
+        case 'searchComplete':
+          renderResults(message.data);
+          break;
+      }
+    });
+
+    // Initialize settings on load
+    window.addEventListener('load', () => {
+      updateSettingsUI(currentSettings);
+    });
+  </script>
+</body>
+</html>

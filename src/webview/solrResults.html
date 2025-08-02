@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solr Search Results</title>
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      padding: 20px;
+      margin: 0;
+    }
+    .header {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .results-count {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+      margin-bottom: 10px;
+    }
+    .result-item {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 10px;
+      background-color: var(--vscode-editorWidget-background);
+    }
+    .result-header {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .result-header:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .file-path {
+      color: var(--vscode-textLink-foreground);
+      text-decoration: none;
+    }
+    .line-info {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+    }
+    .result-content {
+      padding: 12px;
+    }
+    .match-text {
+      background-color: var(--vscode-editor-findMatchHighlightBackground);
+      color: var(--vscode-editor-findMatchForeground);
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+    .context-line {
+      margin: 2px 0;
+      font-family: var(--vscode-editor-font-family);
+      font-size: var(--vscode-editor-font-size);
+      line-height: 1.4;
+    }
+    .context-line-number {
+      color: var(--vscode-editorLineNumber-foreground);
+      width: 40px;
+      display: inline-block;
+      text-align: right;
+      margin-right: 10px;
+      font-size: 0.9em;
+    }
+    .summary {
+      background-color: var(--vscode-textBlockQuote-background);
+      border-left: 4px solid var(--vscode-textBlockQuote-border);
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+    }
+    .no-results {
+      text-align: center;
+      color: var(--vscode-descriptionForeground);
+      padding: 40px;
+      font-style: italic;
+    }
+    .solr-badge {
+      background-color: #ff6b35;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    .session-info {
+      background-color: var(--vscode-editorInfo-background);
+      border: 1px solid var(--vscode-editorInfo-border);
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-size: 0.9em;
+    }
+    .query-info {
+      background-color: var(--vscode-textBlockQuote-background);
+      border: 1px solid var(--vscode-textBlockQuote-border);
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    .query-text {
+      font-family: var(--vscode-editor-font-family);
+      background-color: var(--vscode-input-background);
+      padding: 4px 8px;
+      border-radius: 2px;
+      border: 1px solid var(--vscode-input-border);
+    }
+    .metadata {
+      display: flex;
+      gap: 15px;
+      font-size: 0.8em;
+      color: var(--vscode-descriptionForeground);
+      margin-top: 5px;
+    }
+    .score {
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+    .original-query {
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+    }
+    .tags {
+      margin-top: 5px;
+    }
+    .tag {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-size: 0.7em;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>
+      <span class="solr-badge">SOLR</span>
+      Search Results
+    </h2>
+    <div id="session-info" class="session-info" style="display: none;">
+      <strong>Session:</strong> <span id="session-id"></span>
+    </div>
+    <div class="query-info">
+      <strong>Query:</strong> <span class="query-text" id="search-query"></span>
+    </div>
+    <div class="results-count" id="results-count">Found 0 results</div>
+  </div>
+  <div id="results-container"></div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    
+    function openFile(file, line, column) {
+      vscode.postMessage({
+        command: 'openFile',
+        file: file,
+        line: line,
+        column: column
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function renderResults(data) {
+      const { results, query, sessionId } = data;
+      
+      console.log('SolrResults renderResults() called with:', {
+        resultsCount: results.length,
+        query: query,
+        sessionId: sessionId,
+        results: results.map(r => ({
+          id: r.id,
+          session_id: r.search_session_id,
+          file_path: r.file_path,
+          original_query: r.original_query
+        }))
+      });
+      
+      // Update header
+      document.getElementById('search-query').textContent = query;
+      document.getElementById('results-count').textContent = 
+        `Found ${results.length} result${results.length !== 1 ? 's' : ''}`;
+      
+      if (sessionId) {
+        document.getElementById('session-info').style.display = 'block';
+        document.getElementById('session-id').textContent = sessionId;
+      }
+
+      // Render results
+      const container = document.getElementById('results-container');
+      
+      if (results.length === 0) {
+        container.innerHTML = '<div class="no-results">No results found in stored sessions</div>';
+        return;
+      }
+
+      container.innerHTML = results.map(result => `
+        <div class="result-item">
+          <div class="result-header" onclick="openFile(${JSON.stringify(result.file_path)}, ${result.line_number}, ${result.column_number})">
+            <span class="file-path">${escapeHtml(result.file_path)}</span>
+            <span class="line-info">Line ${result.line_number}, Column ${result.column_number}</span>
+          </div>
+          <div class="result-content">
+            ${getResultContent(result)}
+            <div class="metadata">
+              <span class="score">Score: ${result.relevance_score.toFixed(2)}</span>
+              <span>Session: ${escapeHtml(result.search_session_id)}</span>
+              <span class="original-query">Original: "${escapeHtml(result.original_query)}"</span>
+              <span>Size: ${result.file_size ? formatFileSize(result.file_size) : 'N/A'}</span>
+              <span>Modified: ${result.file_modified ? new Date(result.file_modified).toLocaleDateString() : 'N/A'}</span>
+            </div>
+            ${result.ai_tags && result.ai_tags.length > 0 ? `
+              <div class="tags">
+                ${result.ai_tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+              </div>
+            ` : ''}
+            ${result.ai_summary ? `<div class="summary">${escapeHtml(result.ai_summary)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getResultContent(result) {
+      const contextBefore = result.context_before || [];
+      const contextAfter = result.context_after || [];
+      const matchLine = result.full_line || result.match_text;
+      
+      const allLines = [...contextBefore, matchLine, ...contextAfter];
+      const matchLineIndex = contextBefore.length;
+      
+      return allLines.map((line, index) => {
+        const lineNumber = result.line_number - contextBefore.length + index;
+        const isMatchLine = index === matchLineIndex;
+        
+        let displayLine = escapeHtml(line);
+        if (isMatchLine && result.match_text) {
+          try {
+            // Use a safer approach to highlight matches
+            const matchText = escapeHtml(result.match_text);
+            
+            // If match text contains HTML entities or special chars, just mark the whole line
+            if (matchText.includes('&') || matchText.includes('<') || matchText.includes('>')) {
+              displayLine = `<span class="match-text">${displayLine}</span>`;
+            } else {
+              // Safe to use regex for simple text
+              const escapedMatch = matchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              displayLine = displayLine.replace(
+                new RegExp(escapedMatch, 'gi'),
+                `<span class="match-text">${matchText}</span>`
+              );
+            }
+          } catch (regexError) {
+            console.warn('Regex error in match highlighting:', regexError);
+            // Fallback: highlight entire line
+            displayLine = `<span class="match-text">${displayLine}</span>`;
+          }
+        }
+        
+        return `
+          <div class="context-line">
+            <span class="context-line-number">${lineNumber}</span>
+            ${displayLine}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Listen for messages from the extension
+    window.addEventListener('message', event => {
+      const message = event.data;
+      switch (message.command) {
+        case 'updateResults':
+          renderResults(message.data);
+          break;
+      }
+    });
+  </script>
+</body>
+</html>
