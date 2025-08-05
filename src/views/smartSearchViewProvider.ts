@@ -95,7 +95,8 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         effectiveSearchOptions = {
           query,
           maxResults: persistedSettings?.maxResults || options.maxResults || 100,
-          contextLines: persistedSettings?.contextLines || options.contextLines || 2,
+          contextLinesBefore: persistedSettings?.contextLinesBefore || options.contextLinesBefore || 30,
+          contextLinesAfter: persistedSettings?.contextLinesAfter || options.contextLinesAfter || 30,
           includePatterns: persistedSettings?.includePatterns || options.includePatterns,
           excludePatterns: persistedSettings?.excludePatterns || options.excludePatterns,
           caseSensitive: persistedSettings?.caseSensitive || options.caseSensitive || false,
@@ -135,7 +136,39 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         
         // For session search, use SolrResultsPanel with stored results
         const indexManager = new IndexManager();
-        const storedResults = await indexManager.searchStoredResultsDetailed({ query }, this.latestSessionId);
+        
+        // Get persisted settings and merge with current options
+        const persistedSettings = SolrResultsPanel.getPersistedSettings();
+        const mergedOptions = {
+          ...options,
+          maxResults: persistedSettings.maxResults || options.maxResults,
+        };
+        
+        let storedResults = await indexManager.searchStoredResultsDetailed(mergedOptions, this.latestSessionId);
+        
+        // Apply additional filtering if settings exist
+        if (persistedSettings.minScore > 0) {
+          storedResults = storedResults.filter(r => r.relevance_score >= persistedSettings.minScore);
+        }
+        
+        if (persistedSettings.fileTypes) {
+          const fileTypes = persistedSettings.fileTypes.split(',').map((t: string) => t.trim().toLowerCase());
+          storedResults = storedResults.filter(r => {
+            const ext = r.file_extension?.toLowerCase() || '';
+            return fileTypes.some((type: string) => ext.includes(type) || ext === `.${type}`);
+          });
+        }
+        
+        if (persistedSettings.excludePatterns) {
+          const excludePatterns = persistedSettings.excludePatterns.split(',').map((p: string) => p.trim().toLowerCase());
+          storedResults = storedResults.filter(r => {
+            const filePath = r.file_path.toLowerCase();
+            const fileName = r.file_name.toLowerCase();
+            return !excludePatterns.some((pattern: string) => 
+              filePath.includes(pattern) || fileName.includes(pattern)
+            );
+          });
+        }
         
         if (storedResults.length === 0) {
           // Check if the session actually exists

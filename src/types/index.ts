@@ -17,7 +17,9 @@ export interface SearchOptions {
   wholeWord?: boolean;
   useRegex?: boolean;
   searchInResults?: boolean; // Search within previously stored ripgrep results
-  contextLines?: number; // Number of context lines to show around matches
+  contextLines?: number; // Number of context lines to show around matches (for backward compatibility)
+  contextLinesBefore?: number; // Number of context lines to show before matches
+  contextLinesAfter?: number; // Number of context lines to show after matches
 }
 
 export interface StoredSearchResult {

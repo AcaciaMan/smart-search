@@ -13,7 +13,8 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
   private currentSettings: SearchOptions = {
     query: '',
     maxResults: 100,
-    contextLines: 2
+    contextLinesBefore: 30,
+    contextLinesAfter: 30
   };
 
   constructor(extensionUri: vscode.Uri) {
@@ -76,7 +77,8 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       const searchOptions: SearchOptions = {
         query: query,
         maxResults: settings.maxResults || 100,
-        contextLines: settings.contextLines || 2,
+        contextLinesBefore: settings.contextLinesBefore || 30,
+        contextLinesAfter: settings.contextLinesAfter || 30,
         includePatterns: settings.includePatterns && settings.includePatterns.length > 0 ? settings.includePatterns : undefined,
         excludePatterns: settings.excludePatterns && settings.excludePatterns.length > 0 ? settings.excludePatterns : undefined,
         // Preserve original search options from main search panel
@@ -91,7 +93,8 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       // Persist only the fine-tuning settings for future searches (excluding the query and main search options)
       RipgrepResultsPanel.persistedSettings = {
         maxResults: searchOptions.maxResults,
-        contextLines: searchOptions.contextLines,
+        contextLinesBefore: searchOptions.contextLinesBefore,
+        contextLinesAfter: searchOptions.contextLinesAfter,
         includePatterns: searchOptions.includePatterns,
         excludePatterns: searchOptions.excludePatterns,
         query: '' // Don't persist the specific query
@@ -132,7 +135,8 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       // Persist only the fine-tuning settings for future searches (not the main search options)
       RipgrepResultsPanel.persistedSettings = {
         maxResults: settings.maxResults,
-        contextLines: settings.contextLines,
+        contextLinesBefore: settings.contextLinesBefore || settings.contextLines, // Backward compatibility
+        contextLinesAfter: settings.contextLinesAfter || settings.contextLines, // Backward compatibility
         includePatterns: settings.includePatterns,
         excludePatterns: settings.excludePatterns,
         query: '' // Don't persist the specific query

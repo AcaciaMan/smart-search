@@ -146,6 +146,98 @@
       font-size: 0.7em;
       margin-right: 5px;
     }
+    .settings-panel {
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      overflow: hidden;
+    }
+    .settings-header {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+    .settings-header:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .settings-content {
+      padding: 12px;
+      display: none;
+    }
+    .settings-content.expanded {
+      display: block;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .settings-row:last-child {
+      margin-bottom: 0;
+    }
+    .settings-label {
+      min-width: 120px;
+      color: var(--vscode-foreground);
+      font-size: 0.9em;
+    }
+    .settings-input {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      color: var(--vscode-input-foreground);
+      padding: 4px 8px;
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 0.9em;
+      min-width: 200px;
+    }
+    .settings-input:focus {
+      border-color: var(--vscode-focusBorder);
+      outline: none;
+    }
+    .settings-number {
+      width: 80px;
+      min-width: 80px;
+    }
+    .settings-select {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      color: var(--vscode-input-foreground);
+      padding: 4px 8px;
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: 0.9em;
+      min-width: 150px;
+    }
+    .settings-button {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-family: var(--vscode-font-family);
+      font-size: 0.9em;
+    }
+    .settings-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    .settings-button:disabled {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      cursor: not-allowed;
+    }
+    .collapse-icon {
+      transition: transform 0.2s ease;
+    }
+    .collapse-icon.expanded {
+      transform: rotate(90deg);
+    }
   </style>
 </head>
 <body>
@@ -160,12 +252,145 @@
     <div class="query-info">
       <strong>Query:</strong> <span class="query-text" id="search-query"></span>
     </div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel">
+      <div class="settings-header" onclick="toggleSettings()">
+        <span>Search Settings</span>
+        <span class="collapse-icon" id="settings-icon">▶</span>
+      </div>
+      <div class="settings-content" id="settings-content">
+        <div class="settings-row">
+          <label class="settings-label">Max Results:</label>
+          <input type="number" id="max-results" class="settings-input settings-number" value="100" min="1" max="1000">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Min Score:</label>
+          <input type="number" id="min-score" class="settings-input settings-number" value="0" min="0" max="100" step="0.1" 
+                 title="Minimum relevance score (0-100)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Sort By:</label>
+          <select id="sort-order" class="settings-input settings-select">
+            <option value="relevance">Relevance (High to Low)</option>
+            <option value="relevance_asc">Relevance (Low to High)</option>
+            <option value="timestamp">Date (Newest First)</option>
+            <option value="timestamp_asc">Date (Oldest First)</option>
+            <option value="filename">File Name</option>
+            <option value="line_number">Line Number</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">File Types:</label>
+          <input type="text" id="file-types" class="settings-input" 
+                 placeholder="e.g., js,ts,py,java" title="Comma-separated file extensions">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Exclude Files:</label>
+          <input type="text" id="exclude-patterns" class="settings-input" 
+                 placeholder="e.g., test,spec,node_modules" title="Comma-separated patterns to exclude">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Session ID:</label>
+          <input type="text" id="session-filter" class="settings-input" 
+                 placeholder="Filter by specific session" title="Show results from specific search session only">
+        </div>
+        <div class="settings-row">
+          <button class="settings-button" onclick="applySettings()" id="apply-button">Apply Settings</button>
+          <button class="settings-button" onclick="resetSettings()" id="reset-button" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); margin-left: 8px;">Reset</button>
+        </div>
+      </div>
+    </div>
+    
     <div class="results-count" id="results-count">Found 0 results</div>
   </div>
   <div id="results-container"></div>
 
   <script>
     const vscode = acquireVsCodeApi();
+    let currentQuery = '';
+    let currentSessionId = '';
+    
+    // Settings persistence
+    let searchSettings = {
+      maxResults: 100,
+      minScore: 0,
+      sortOrder: 'relevance',
+      fileTypes: '',
+      excludePatterns: '',
+      sessionFilter: ''
+    };
+
+    function toggleSettings() {
+      const content = document.getElementById('settings-content');
+      const icon = document.getElementById('settings-icon');
+      
+      if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        icon.classList.remove('expanded');
+      } else {
+        content.classList.add('expanded');
+        icon.classList.add('expanded');
+      }
+    }
+
+    function applySettings() {
+      // Collect settings from UI
+      searchSettings.maxResults = parseInt(document.getElementById('max-results').value) || 100;
+      searchSettings.minScore = parseFloat(document.getElementById('min-score').value) || 0;
+      searchSettings.sortOrder = document.getElementById('sort-order').value || 'relevance';
+      searchSettings.fileTypes = document.getElementById('file-types').value.trim();
+      searchSettings.excludePatterns = document.getElementById('exclude-patterns').value.trim();
+      searchSettings.sessionFilter = document.getElementById('session-filter').value.trim();
+
+      // Validate settings
+      if (searchSettings.maxResults < 1 || searchSettings.maxResults > 1000) {
+        vscode.postMessage({
+          command: 'showError',
+          message: 'Max results must be between 1 and 1000'
+        });
+        return;
+      }
+
+      if (searchSettings.minScore < 0 || searchSettings.minScore > 100) {
+        vscode.postMessage({
+          command: 'showError',
+          message: 'Min score must be between 0 and 100'
+        });
+        return;
+      }
+
+      // Send search request with new settings
+      if (currentQuery) {
+        vscode.postMessage({
+          command: 'searchWithSettings',
+          query: currentQuery,
+          sessionId: currentSessionId || searchSettings.sessionFilter,
+          settings: searchSettings
+        });
+      }
+    }
+
+    function resetSettings() {
+      searchSettings = {
+        maxResults: 100,
+        minScore: 0,
+        sortOrder: 'relevance',
+        fileTypes: '',
+        excludePatterns: '',
+        sessionFilter: ''
+      };
+      updateSettingsUI();
+    }
+
+    function updateSettingsUI() {
+      document.getElementById('max-results').value = searchSettings.maxResults;
+      document.getElementById('min-score').value = searchSettings.minScore;
+      document.getElementById('sort-order').value = searchSettings.sortOrder;
+      document.getElementById('file-types').value = searchSettings.fileTypes;
+      document.getElementById('exclude-patterns').value = searchSettings.excludePatterns;
+      document.getElementById('session-filter').value = searchSettings.sessionFilter;
+    }
     
     function openFile(file, line, column) {
       vscode.postMessage({
@@ -193,6 +418,10 @@
     function renderResults(data) {
       const { results, query, sessionId } = data;
       
+      // Store current search context
+      currentQuery = query;
+      currentSessionId = sessionId || '';
+      
       console.log('SolrResults renderResults() called with:', {
         resultsCount: results.length,
         query: query,
@@ -213,6 +442,11 @@
       if (sessionId) {
         document.getElementById('session-info').style.display = 'block';
         document.getElementById('session-id').textContent = sessionId;
+        // Pre-fill session filter if not already set
+        if (!searchSettings.sessionFilter) {
+          searchSettings.sessionFilter = sessionId;
+          updateSettingsUI();
+        }
       }
 
       // Render results
@@ -301,7 +535,18 @@
         case 'updateResults':
           renderResults(message.data);
           break;
+        case 'updateSettings':
+          if (message.settings) {
+            searchSettings = { ...searchSettings, ...message.settings };
+            updateSettingsUI();
+          }
+          break;
       }
+    });
+
+    // Initialize settings UI on load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateSettingsUI();
     });
   </script>
 </body>

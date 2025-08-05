@@ -17,11 +17,17 @@ The Ripgrep Results Panel includes an interactive settings panel that allows use
 
 ### Available Settings
 
-#### **Context Lines**
-- **Type**: Number input (0-10)
-- **Default**: 2
-- **Description**: Number of lines to show before and after each match
-- **Usage**: Increase for more context, decrease for concise results
+#### **Context Lines Before**
+- **Type**: Number input (0-100)
+- **Default**: 30
+- **Description**: Number of lines to show before each match
+- **Usage**: Increase to see more leading context, useful for understanding function/class definitions
+
+#### **Context Lines After**
+- **Type**: Number input (0-100)
+- **Default**: 30
+- **Description**: Number of lines to show after each match
+- **Usage**: Increase to see more trailing context, useful for understanding complete code blocks
 
 #### **Include Files**
 - **Type**: Text input (comma-separated glob patterns)
@@ -103,26 +109,26 @@ RipgrepResultsPanel.persistedSettings = {
 
 ### Development Workflow
 ```
-1. Search for "TODO" (default settings)
-2. In results panel: Set context lines to 5, exclude test files
+1. Search for "TODO" (default settings: 30 lines before/after)
+2. In results panel: Set before=10, after=5 for concise TODO context
 3. Apply settings → Settings now persist
-4. Search for "FIXME" from main panel → Uses 5 context lines, excludes tests
-5. Search for "function" from main panel → Uses same custom settings
+4. Search for "FIXME" from main panel → Uses 10 before, 5 after context
+5. Search for "function" from main panel → Uses same custom context settings
 ```
 
 ### Code Review Focus
 ```
-1. Configure: Context lines: 8, Include: src/**/*.ts, Exclude: *.test.*
+1. Configure: Before=50, After=10, Include: src/**/*.ts, Exclude: *.test.*
 2. Apply settings → All subsequent searches use these parameters
-3. Search "async", "Promise", "await" → All use the same file filtering
+3. Search "async", "Promise", "await" → All use the same context and file filtering
 4. Clear settings when done with TypeScript-only review
 ```
 
-### Performance Optimization
+### Function Analysis Workflow
 ```
-1. Large codebase causing slow searches
-2. Configure: Max results: 50, Exclude: node_modules,dist,build
-3. Apply settings → Future searches are faster and more focused
+1. Large codebase with complex functions
+2. Configure: Before=20 (see function signature), After=50 (see implementation)
+3. Apply settings → Future searches optimized for function understanding
 4. Settings persist across VS Code sessions until manually cleared
 ```
 

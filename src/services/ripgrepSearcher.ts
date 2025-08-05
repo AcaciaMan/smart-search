@@ -25,9 +25,21 @@ export class RipgrepSearcher {
         '--json',
         '--line-number',
         '--column',
-        '--with-filename',
-        '--context', (options.contextLines || 2).toString()
+        '--with-filename'
       ];
+
+      // Handle context lines - support both new separate before/after and legacy contextLines
+      if (options.contextLinesBefore !== undefined || options.contextLinesAfter !== undefined) {
+        // Use separate before and after context lines
+        const before = options.contextLinesBefore || 30;
+        const after = options.contextLinesAfter || 30;
+        args.push('--before-context', before.toString());
+        args.push('--after-context', after.toString());
+      } else {
+        // Fall back to legacy contextLines for backward compatibility
+        const context = options.contextLines || 30;
+        args.push('--context', context.toString());
+      }
 
       if (!options.caseSensitive) {
         args.push('--ignore-case');
