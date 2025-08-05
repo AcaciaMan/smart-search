@@ -140,6 +140,7 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         // Get persisted settings and merge with current options
         const persistedSettings = SolrResultsPanel.getPersistedSettings();
         const mergedOptions = {
+          query,  // THIS WAS MISSING! Solr needs the query to search for
           ...options,
           maxResults: persistedSettings.maxResults || options.maxResults,
         };
