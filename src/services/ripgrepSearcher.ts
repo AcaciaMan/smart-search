@@ -29,6 +29,7 @@ export class RipgrepSearcher {
       ];
 
       // Handle context lines - support both new separate before/after and legacy contextLines
+      // Re-enable context to ensure submatch information is properly provided
       if (options.contextLinesBefore !== undefined || options.contextLinesAfter !== undefined) {
         // Use separate before and after context lines
         const before = options.contextLinesBefore || 30;
@@ -73,6 +74,7 @@ export class RipgrepSearcher {
       const rg = spawn('rg', args);
       const results: SearchResult[] = [];
       let buffer = '';
+      let contextLines: string[] = [];
 
       rg.stdout.on('data', (data) => {
         buffer += data.toString();
@@ -83,17 +85,37 @@ export class RipgrepSearcher {
           if (line.trim()) {
             try {
               const parsed = JSON.parse(line);
-              if (parsed.type === 'match') {
+              
+              if (parsed.type === 'context') {
+                // Collect context lines for Solr storage but don't create results
+                contextLines.push(parsed.data.lines.text);
+              } else if (parsed.type === 'match') {
+                // Extract submatch information for precise highlighting
+                const submatches = parsed.data.submatches?.map((submatch: any) => ({
+                  start: submatch.start,
+                  end: submatch.end,
+                  text: submatch.match?.text || parsed.data.lines.text.substring(submatch.start, submatch.end)
+                })) || [];
+
+                // Include match line in context for Solr
+                const fullContext = [...contextLines, parsed.data.lines.text];
+
+                // Create result for actual match only
                 const result: SearchResult = {
                   file: parsed.data.path.text,
                   line: parsed.data.line_number,
                   column: parsed.data.submatches[0]?.start || 0,
-                  content: parsed.data.lines.text,
-                  context: [], // Context would need additional processing
-                  score: 1.0
+                  content: parsed.data.lines.text, // Only the actual match line
+                  context: fullContext, // Full context for Solr storage
+                  score: 1.0,
+                  submatches: submatches // Include submatch positions for highlighting
                 };
                 results.push(result);
+                
+                // Reset context lines after each match
+                contextLines = [];
               }
+              // Ignore other types (like 'begin', 'end', etc.)
             } catch (error) {
               console.warn('Failed to parse ripgrep output:', line);
             }

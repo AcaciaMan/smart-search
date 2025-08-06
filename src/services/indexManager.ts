@@ -35,13 +35,24 @@ export class IndexManager {
         // File may not exist or not accessible
       }
 
-      // Split context into before and after
+      // Extract context lines properly from ripgrep result
       const contextBefore: string[] = [];
       const contextAfter: string[] = [];
-      if (result.context && result.context.length > 0) {
-        const contextMiddle = Math.floor(result.context.length / 2);
-        contextBefore.push(...result.context.slice(0, contextMiddle));
-        contextAfter.push(...result.context.slice(contextMiddle + 1));
+      
+      if (result.context && result.context.length > 1) {
+        // Find the match line in the context array
+        const matchIndex = result.context.findIndex(line => line === result.content);
+        
+        if (matchIndex !== -1) {
+          // Split context around the actual match line
+          contextBefore.push(...result.context.slice(0, matchIndex));
+          contextAfter.push(...result.context.slice(matchIndex + 1));
+        } else {
+          // If we can't find the exact match line, assume it's the last line
+          // (since ripgrep searcher adds match line at the end)
+          contextBefore.push(...result.context.slice(0, -1));
+          // No after context in this case
+        }
       }
 
       return {

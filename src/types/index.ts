@@ -6,6 +6,11 @@ export interface SearchResult {
   context: string[];
   score: number;
   summary?: string;
+  submatches?: Array<{
+    start: number;
+    end: number;
+    text: string;
+  }>;
 }
 
 export interface SearchOptions {

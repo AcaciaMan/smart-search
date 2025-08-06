@@ -370,43 +370,62 @@
     }
 
     function getResultContent(result) {
-      const contextLines = result.context || [];
-      const matchLineIndex = Math.floor(contextLines.length / 2);
+      // Show only the match line with precise submatch highlighting
+      const matchLine = result.content;
+      let displayLine = '';
       
-      return contextLines.map((line, index) => {
-        const lineNumber = result.line - matchLineIndex + index;
-        const isMatchLine = index === matchLineIndex;
+      // Use submatch information for precise highlighting if available
+      if (result.submatches && Array.isArray(result.submatches) && result.submatches.length > 0) {
+        let lastEnd = 0;
         
-        let displayLine = escapeHtml(line);
-        if (isMatchLine && result.content) {
-          try {
-            const matchText = escapeHtml(result.content);
-            
-            // If match text contains HTML entities or special chars, just mark the whole line
-            if (matchText.includes('&') || matchText.includes('<') || matchText.includes('>')) {
-              displayLine = `<span class="match-text">${displayLine}</span>`;
-            } else {
-              // Safe to use regex for simple text
-              const escapedMatch = matchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              displayLine = displayLine.replace(
-                new RegExp(escapedMatch, 'gi'),
-                `<span class="match-text">${matchText}</span>`
-              );
-            }
-          } catch (regexError) {
-            console.warn('Regex error in match highlighting:', regexError);
-            // Fallback: highlight entire line
-            displayLine = `<span class="match-text">${displayLine}</span>`;
+        // Sort submatches by start position to process them in order
+        const sortedSubmatches = [...result.submatches].sort((a, b) => a.start - b.start);
+        
+        for (const submatch of sortedSubmatches) {
+          // Add text before this submatch (escaped)
+          if (submatch.start > lastEnd) {
+            displayLine += escapeHtml(matchLine.substring(lastEnd, submatch.start));
           }
+          
+          // Add highlighted submatch (escaped content inside highlight tags)
+          const matchText = matchLine.substring(submatch.start, submatch.end);
+          displayLine += `<span class="match-text">${escapeHtml(matchText)}</span>`;
+          
+          lastEnd = submatch.end;
         }
         
-        return `
-          <div class="context-line">
-            <span class="context-line-number">${lineNumber}</span>
-            ${displayLine}
-          </div>
-        `;
-      }).join('');
+        // Add any remaining text after the last submatch (escaped)
+        if (lastEnd < matchLine.length) {
+          displayLine += escapeHtml(matchLine.substring(lastEnd));
+        }
+      } else {
+        // Fallback: try to highlight using current query if submatch info is not available
+        displayLine = escapeHtml(matchLine);
+        const currentQuery = document.getElementById('search-query').textContent || '';
+        
+        if (currentQuery.trim()) {
+          try {
+            // Escape the query for safe regex use
+            const escapedQuery = currentQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            
+            // Highlight the matched query within the line
+            displayLine = displayLine.replace(
+              new RegExp(`(${escapedQuery})`, 'gi'),
+              '<span class="match-text">$1</span>'
+            );
+          } catch (regexError) {
+            console.warn('Regex error in match highlighting:', regexError);
+            // Don't highlight anything if regex fails
+          }
+        }
+      }
+      
+      return `
+        <div class="context-line">
+          <span class="context-line-number">${result.line}</span>
+          ${displayLine}
+        </div>
+      `;
     }
 
     // Listen for messages from the extension
