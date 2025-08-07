@@ -74,7 +74,11 @@ export class RipgrepSearcher {
       const rg = spawn('rg', args);
       const results: SearchResult[] = [];
       let buffer = '';
-      let contextLines: string[] = [];
+      let allLines: Array<{
+        type: 'context' | 'match';
+        data: any;
+        lineNumber?: number;
+      }> = [];
 
       rg.stdout.on('data', (data) => {
         buffer += data.toString();
@@ -86,36 +90,13 @@ export class RipgrepSearcher {
             try {
               const parsed = JSON.parse(line);
               
-              if (parsed.type === 'context') {
-                // Collect context lines for Solr storage but don't create results
-                contextLines.push(parsed.data.lines.text);
-              } else if (parsed.type === 'match') {
-                // Extract submatch information for precise highlighting
-                const submatches = parsed.data.submatches?.map((submatch: any) => ({
-                  start: submatch.start,
-                  end: submatch.end,
-                  text: submatch.match?.text || parsed.data.lines.text.substring(submatch.start, submatch.end)
-                })) || [];
-
-                // Include match line in context for Solr
-                const fullContext = [...contextLines, parsed.data.lines.text];
-
-                // Create result for actual match only
-                const result: SearchResult = {
-                  file: parsed.data.path.text,
-                  line: parsed.data.line_number,
-                  column: parsed.data.submatches[0]?.start || 0,
-                  content: parsed.data.lines.text, // Only the actual match line
-                  context: fullContext, // Full context for Solr storage
-                  score: 1.0,
-                  submatches: submatches // Include submatch positions for highlighting
-                };
-                results.push(result);
-                
-                // Reset context lines after each match
-                contextLines = [];
+              if (parsed.type === 'context' || parsed.type === 'match') {
+                allLines.push({
+                  type: parsed.type,
+                  data: parsed.data,
+                  lineNumber: parsed.data.line_number
+                });
               }
-              // Ignore other types (like 'begin', 'end', etc.)
             } catch (error) {
               console.warn('Failed to parse ripgrep output:', line);
             }
@@ -128,6 +109,9 @@ export class RipgrepSearcher {
       });
 
       rg.on('close', (code) => {
+        // Process all collected lines and extract context for each match
+        this.processAllLines(allLines, results);
+        
         if (code === 0 || code === 1) { // 0 = found, 1 = not found
           resolve(results);
         } else {
@@ -139,6 +123,130 @@ export class RipgrepSearcher {
         reject(new Error(`Failed to start ripgrep: ${error.message}`));
       });
     });
+  }
+
+  private processAllLines(allLines: Array<{
+    type: 'context' | 'match';
+    data: any;
+    lineNumber?: number;
+  }>, results: SearchResult[]) {
+    // Find all match indices
+    const matchIndices: number[] = [];
+    for (let i = 0; i < allLines.length; i++) {
+      if (allLines[i].type === 'match') {
+        matchIndices.push(i);
+      }
+    }
+
+    // Process each match with its surrounding context
+    for (let i = 0; i < matchIndices.length; i++) {
+      const matchIndex = matchIndices[i];
+      const matchData = allLines[matchIndex].data;
+      const matchLineNumber = matchData.line_number;
+      const matchFilePath = matchData.path.text;
+      
+      // Find before context: context lines that are closer to this match than to the previous match
+      const beforeContext: string[] = [];
+      
+      // Find the previous match in the same file
+      let prevMatchLineNumber = 0;
+      for (let k = i - 1; k >= 0; k--) {
+        const prevMatchData = allLines[matchIndices[k]].data;
+        if (prevMatchData.path.text === matchFilePath) {
+          prevMatchLineNumber = prevMatchData.line_number;
+          break;
+        }
+      }
+      
+      // Look for context lines before this match
+      for (let j = matchIndex - 1; j >= 0; j--) {
+        if (allLines[j].type === 'context') {
+          const contextData = allLines[j].data;
+          const contextLineNumber = contextData.line_number;
+          
+          // CRITICAL: Only consider context from the same file
+          if (contextData.path.text !== matchData.path.text) {
+            break; // Different file, stop looking
+          }
+          
+          // Only include this context line if it's closer to current match than to previous match
+          const distanceToCurrent = matchLineNumber - contextLineNumber;
+          const distanceToPrevious = prevMatchLineNumber > 0 ? contextLineNumber - prevMatchLineNumber : Infinity;
+          
+          if (distanceToCurrent <= distanceToPrevious) {
+            beforeContext.unshift(contextData.lines.text); // Add to beginning to maintain order
+          } else {
+            break; // This context belongs to previous match
+          }
+        } else if (allLines[j].type === 'match') {
+          break; // Hit previous match, stop looking
+        }
+      }
+      
+      // Find after context: context lines that are closer to this match than to the next match
+      const afterContext: string[] = [];
+      
+      // Find the next match in the same file
+      let nextMatchLineNumber = Infinity;
+      for (let k = i + 1; k < matchIndices.length; k++) {
+        const nextMatchData = allLines[matchIndices[k]].data;
+        if (nextMatchData.path.text === matchFilePath) {
+          nextMatchLineNumber = nextMatchData.line_number;
+          break;
+        }
+      }
+      
+      // Look for context lines after this match
+      for (let j = matchIndex + 1; j < allLines.length; j++) {
+        if (allLines[j].type === 'context') {
+          const contextData = allLines[j].data;
+          const contextLineNumber = contextData.line_number;
+          
+          // CRITICAL: Only consider context from the same file
+          if (contextData.path.text !== matchData.path.text) {
+            break; // Different file, stop looking
+          }
+          
+          // Only include this context line if it's closer to current match than to next match
+          const distanceToCurrent = contextLineNumber - matchLineNumber;
+          const distanceToNext = nextMatchLineNumber < Infinity ? nextMatchLineNumber - contextLineNumber : Infinity;
+          
+          if (distanceToCurrent <= distanceToNext) {
+            afterContext.push(contextData.lines.text);
+          } else {
+            break; // This context belongs to next match
+          }
+        } else if (allLines[j].type === 'match') {
+          break; // Hit next match, stop looking
+        }
+      }
+
+      // Extract submatch information for precise highlighting
+      const submatches = matchData.submatches?.map((submatch: any) => ({
+        start: submatch.start,
+        end: submatch.end,
+        text: submatch.match?.text || matchData.lines.text.substring(submatch.start, submatch.end)
+      })) || [];
+
+      // Create proper context array: before + match + after
+      const fullContext = [
+        ...beforeContext,
+        matchData.lines.text,
+        ...afterContext
+      ];
+
+      // Create result for actual match
+      const result: SearchResult = {
+        file: matchData.path.text,
+        line: matchData.line_number,
+        column: matchData.submatches[0]?.start || 0,
+        content: matchData.lines.text, // Only the actual match line
+        context: fullContext, // Full context for Solr storage with proper before/after
+        score: 1.0,
+        submatches: submatches // Include submatch positions for highlighting
+      };
+      results.push(result);
+    }
   }
 
   /**
