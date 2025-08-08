@@ -1,0 +1,45 @@
+# Protected words for Solr
+# These words will not be stemmed or modified by filters
+# Useful for preserving important technical terms
+
+# Programming keywords that should not be stemmed
+class
+function
+method
+interface
+implements
+extends
+public
+private
+protected
+static
+final
+abstract
+synchronized
+
+# File extensions
+.js
+.ts
+.py
+.java
+.cs
+.cpp
+.html
+.css
+.json
+.xml
+
+# Technical terms
+API
+HTTP
+HTTPS
+JSON
+XML
+SQL
+REST
+SOAP
+URL
+URI
+UUID
+GMT
+UTC

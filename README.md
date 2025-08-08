@@ -20,6 +20,29 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 2. (Optional) Set up Solr for advanced indexing - see [Configuration Guide](docs/configuration.md)
 3. Make sure ripgrep is installed on your system
 
+## Solr Configuration for Enhanced Highlighting
+
+To get the best highlighting experience, configure Solr with optimized settings:
+
+### Quick Setup (Automated)
+```bash
+# Windows
+npm run configure-solr
+
+# Linux/Mac
+npm run configure-solr-unix
+```
+
+### Manual Setup
+See the detailed configuration guide: [SOLR_HIGHLIGHTING_CONFIG.md](SOLR_HIGHLIGHTING_CONFIG.md)
+
+### What You Get:
+- **🎯 Advanced highlighting** with phrase and proximity matching
+- **📝 Smart snippets** with context-aware fragment generation  
+- **⚡ Better performance** with optimized analyzers and field types
+- **🎨 Rich visual formatting** with multiple highlighting styles
+- **🛡️ XSS protection** with safe HTML rendering
+
 ## Usage
 
 ### Basic Search

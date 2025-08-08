@@ -102,7 +102,11 @@
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
     "copy-resources": "xcopy /E /I /Y src\\webview dist\\webview && xcopy /E /I /Y resources dist\\resources",
-    "build": "npm run package && npm run copy-resources"
+    "build": "npm run package && npm run copy-resources",
+    "configure-solr": "scripts\\configure-solr-highlighting.bat",
+    "configure-solr-unix": "bash scripts/configure-solr-highlighting.sh",
+    "test-solr": "scripts\\test-solr-config.bat",
+    "test-solr-unix": "bash scripts/test-solr-config.sh"
   },
   "devDependencies": {
     "@types/glob": "^8.0.0",

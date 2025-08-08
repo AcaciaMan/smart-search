@@ -59,11 +59,71 @@
       padding: 2px 4px;
       border-radius: 2px;
     }
+    
+    /* Enhanced highlighting styles */
+    .highlight,
+    .solr-highlight,
+    mark {
+      background-color: var(--vscode-editor-findMatchBackground);
+      color: var(--vscode-editor-foreground);
+      padding: 1px 2px;
+      border-radius: 2px;
+      font-weight: bold;
+      border: 1px solid var(--vscode-editor-findMatchBorder);
+    }
+    
+    mark.solr-highlight {
+      background-color: #ffeb3b;
+      color: #000;
+      border: 1px solid #ffc107;
+    }
+    
+    .snippet {
+      margin: 4px 0;
+      padding: 8px 12px;
+      background-color: var(--vscode-editor-background);
+      border-left: 3px solid var(--vscode-textLink-foreground);
+      font-family: var(--vscode-editor-font-family);
+      font-size: 12px;
+      line-height: 1.4;
+      border-radius: 0 4px 4px 0;
+    }
+    
+    .snippet .highlight,
+    .snippet .solr-highlight,
+    .snippet mark {
+      background-color: var(--vscode-editor-findMatchBackground);
+      color: var(--vscode-editor-foreground);
+    }
+    
+    .snippets-container {
+      margin-top: 8px;
+    }
+    
+    .snippets-title {
+      font-size: 0.9em;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+      font-weight: bold;
+    }
+    
+    .highlight-stats {
+      font-size: 0.8em;
+      color: var(--vscode-descriptionForeground);
+      margin-left: 8px;
+    }
     .context-line {
       margin: 2px 0;
       font-family: var(--vscode-editor-font-family);
       font-size: var(--vscode-editor-font-size);
       line-height: 1.4;
+    }
+    
+    .context-line.match-line {
+      background-color: var(--vscode-editor-findMatchHighlightBackground);
+      padding: 2px 4px;
+      border-radius: 2px;
+      border-left: 3px solid var(--vscode-editor-findMatchBorder);
     }
     .context-line-number {
       color: var(--vscode-editorLineNumber-foreground);
@@ -484,48 +544,133 @@
     }
 
     function getResultContent(result) {
-      const contextBefore = result.context_before || [];
-      const contextAfter = result.context_after || [];
-      const matchLine = result.full_line || result.match_text;
+      // Use highlighted content if available from Solr, otherwise use original content
+      const highlightedMatchText = result.match_text || result.match_text_raw;
+      const highlightedFullLine = result.full_line || result.full_line_raw;
+      const contextBefore = result.context_before_highlighted || result.context_before || [];
+      const contextAfter = result.context_after_highlighted || result.context_after || [];
       
-      const allLines = [...contextBefore, matchLine, ...contextAfter];
-      const matchLineIndex = contextBefore.length;
+      // Build content with enhanced highlighting
+      let content = '';
       
-      return allLines.map((line, index) => {
+      // Add context before
+      contextBefore.forEach((line, index) => {
         const lineNumber = result.line_number - contextBefore.length + index;
-        const isMatchLine = index === matchLineIndex;
-        
-        let displayLine = escapeHtml(line);
-        if (isMatchLine && result.match_text) {
-          try {
-            // Use a safer approach to highlight matches
-            const matchText = escapeHtml(result.match_text);
-            
-            // If match text contains HTML entities or special chars, just mark the whole line
-            if (matchText.includes('&') || matchText.includes('<') || matchText.includes('>')) {
-              displayLine = `<span class="match-text">${displayLine}</span>`;
-            } else {
-              // Safe to use regex for simple text
-              const escapedMatch = matchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              displayLine = displayLine.replace(
-                new RegExp(escapedMatch, 'gi'),
-                `<span class="match-text">${matchText}</span>`
-              );
-            }
-          } catch (regexError) {
-            console.warn('Regex error in match highlighting:', regexError);
-            // Fallback: highlight entire line
-            displayLine = `<span class="match-text">${displayLine}</span>`;
-          }
-        }
-        
-        return `
+        content += `
           <div class="context-line">
             <span class="context-line-number">${lineNumber}</span>
-            ${displayLine}
+            ${safelyDisplayHighlightedText(line)}
           </div>
         `;
-      }).join('');
+      });
+      
+      // Add the main match line
+      const matchLineNumber = result.line_number;
+      const displayMatchLine = highlightedFullLine || highlightedMatchText;
+      content += `
+        <div class="context-line match-line">
+          <span class="context-line-number">${matchLineNumber}</span>
+          <strong>${safelyDisplayHighlightedText(displayMatchLine)}</strong>
+        </div>
+      `;
+      
+      // Add context after
+      contextAfter.forEach((line, index) => {
+        const lineNumber = result.line_number + index + 1;
+        content += `
+          <div class="context-line">
+            <span class="context-line-number">${lineNumber}</span>
+            ${safelyDisplayHighlightedText(line)}
+          </div>
+        `;
+      });
+      
+      // Add snippets if available
+      if (result.snippets && result.snippets.length > 0) {
+        content += `
+          <div class="snippets-container">
+            <div class="snippets-title">📄 Highlighted Snippets:</div>
+            ${result.snippets.map(snippet => `
+              <div class="snippet">${safelyDisplayHighlightedText(snippet)}</div>
+            `).join('')}
+          </div>
+        `;
+      }
+      
+      return content;
+    }
+    
+    /**
+     * Safely display text that may contain highlighting markup
+     */
+    function safelyDisplayHighlightedText(text) {
+      if (!text) return '';
+      
+      // If text already contains highlighting markup (from Solr), display it safely
+      if (text.includes('<mark') || text.includes('<span')) {
+        // Text already contains highlighting - sanitize but preserve highlighting tags
+        return sanitizeHighlightedHTML(text);
+      }
+      
+      // Plain text - escape HTML entities
+      return escapeHtml(text);
+    }
+    
+    /**
+     * Sanitize HTML but preserve highlighting tags
+     */
+    function sanitizeHighlightedHTML(html) {
+      if (!html) return '';
+      
+      // Clean up nested marks first
+      let cleaned = html.replace(/<mark[^>]*><mark[^>]*>/gi, '<mark class="solr-highlight">');
+      cleaned = cleaned.replace(/<\/mark><\/mark>/gi, '</mark>');
+      
+      // Create a temporary div to safely parse and clean the HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = cleaned;
+      
+      // Remove any script tags or dangerous content
+      const scripts = tempDiv.querySelectorAll('script');
+      scripts.forEach(script => script.remove());
+      
+      // Only allow mark and span tags with class attributes
+      const walker = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_ELEMENT,
+        {
+          acceptNode: function(node) {
+            const tagName = node.tagName.toLowerCase();
+            if (tagName === 'mark' || tagName === 'span') {
+              // Keep highlighting tags
+              return NodeFilter.FILTER_ACCEPT;
+            } else if (tagName === 'script' || tagName === 'style') {
+              // Remove dangerous tags
+              return NodeFilter.FILTER_REJECT;
+            } else {
+              // Convert other tags to text
+              return NodeFilter.FILTER_ACCEPT;
+            }
+          }
+        }
+      );
+      
+      // Clean up any non-allowed elements
+      const elementsToReplace = [];
+      let node;
+      while (node = walker.nextNode()) {
+        const tagName = node.tagName.toLowerCase();
+        if (tagName !== 'mark' && tagName !== 'span') {
+          elementsToReplace.push(node);
+        }
+      }
+      
+      elementsToReplace.forEach(element => {
+        const textNode = document.createTextNode(element.textContent || '');
+        element.parentNode.replaceChild(textNode, element);
+      });
+      
+      return tempDiv.innerHTML;
     }
 
     // Listen for messages from the extension

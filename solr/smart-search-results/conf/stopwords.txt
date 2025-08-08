@@ -1,0 +1,38 @@
+# This file is NOT currently used in the smart-search configuration
+# For code search, stopwords like "if", "for", "while", "function", "class" 
+# are meaningful and should not be filtered out.
+# 
+# Original stopwords (kept for reference):
+# a
+# an
+# and
+# are
+# as
+# at
+# be
+# but
+# by
+# for
+# if
+# in
+# into
+# is
+# it
+# no
+# not
+# of
+# on
+# or
+# such
+# that
+# the
+# their
+# then
+# there
+# these
+# they
+# this
+# to
+# was
+# will
+# with

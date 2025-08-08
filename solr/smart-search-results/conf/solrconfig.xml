@@ -78,18 +78,41 @@
     <httpCaching never304="true"/>
   </requestDispatcher>
 
+<!-- Use default highlighting component for maximum compatibility -->
+
   <!-- Request handlers -->
   
   <!-- Standard request handler -->
-  <requestHandler name="/select" class="solr.SearchHandler">
-    <lst name="defaults">
-      <str name="echoParams">explicit</str>
-      <int name="rows">10</int>
-      <str name="df">content_all</str>
-      <str name="defType">edismax</str>
-      <str name="qf">content_all</str>
-    </lst>
-  </requestHandler>
+<!-- Enhanced request handler with highlighting -->
+<requestHandler name="/select" class="solr.SearchHandler">
+  <lst name="defaults">
+    <str name="echoParams">explicit</str>
+    <int name="rows">10</int>
+    <str name="df">content_all</str>
+    
+    <!-- Default highlighting settings -->
+    <str name="hl">false</str>
+    <str name="hl.fl">content_highlight,code_highlight,match_text,full_line</str>
+    <str name="hl.simple.pre">&lt;mark class="solr-highlight"&gt;</str>
+    <str name="hl.simple.post">&lt;/mark&gt;</str>
+    <int name="hl.fragsize">200</int>
+    <int name="hl.snippets">3</int>
+    <str name="hl.mergeContiguous">true</str>
+    <str name="hl.highlightMultiTerm">true</str>
+    <str name="hl.usePhraseHighlighter">true</str>
+    <str name="hl.highlightPhrase">true</str>
+    <int name="hl.maxAnalyzedChars">500000</int>
+  </lst>
+  
+  <arr name="components">
+    <str>query</str>
+    <str>facet</str>
+    <str>mlt</str>
+    <str>highlight</str>
+    <str>stats</str>
+    <str>debug</str>
+  </arr>
+</requestHandler>
 
   <!-- Search for ripgrep results -->
   <requestHandler name="/search" class="solr.SearchHandler">

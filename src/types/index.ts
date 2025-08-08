@@ -55,4 +55,8 @@ export interface StoredSearchResult {
   match_count_in_file: number;
   ai_summary?: string;
   ai_tags?: string[];
+  // Enhanced highlighting fields
+  context_before_highlighted?: string[];
+  context_after_highlighted?: string[];
+  snippets?: string[];
 }
