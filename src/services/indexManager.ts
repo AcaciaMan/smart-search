@@ -85,7 +85,9 @@ export class IndexManager {
         relevance_score: Math.round(result.score * 100), // Convert to integer score
         match_count_in_file: 1, // We'll need to calculate this in the future
         ai_summary: result.summary || '', // Empty string instead of undefined
-        ai_tags: result.summary ? [result.summary.split(' ').slice(0, 3).join(' ')] : [] // Empty array instead of undefined
+        ai_tags: result.summary ? [result.summary.split(' ').slice(0, 3).join(' ')] : [], // Empty array instead of undefined
+        // Single display field for highlighting - combines all content for easy highlighting
+        display_content: this.createDisplayContent(result, contextBefore, contextAfter)
       };
 
       // Remove undefined/null values to avoid Solr issues
@@ -142,10 +144,13 @@ export class IndexManager {
         q: `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`,
         rows: options.maxResults || 100,
         wt: 'json',
+        // Simplified highlighting - only highlight the display field
         hl: 'true',
-        'hl.fl': 'match_text,full_line,context_before,context_after',
-        'hl.simple.pre': '<mark>',
+        'hl.fl': 'display_content',
+        'hl.simple.pre': '<mark class="highlight">',
         'hl.simple.post': '</mark>',
+        'hl.fragsize': 300,
+        'hl.snippets': 1,
         sort: 'relevance_score desc, search_timestamp desc',
         fl: '*,score'
       };
@@ -172,11 +177,12 @@ export class IndexManager {
       const highlighting = response.data.highlighting || {};
 
       return docs.map((doc: any): SearchResult => {
-        // Get highlighted content if available
+        // Get simplified highlighted content from display field
         const docHighlighting = highlighting[doc.id] || {};
-        const highlightedContent = docHighlighting.match_text?.[0] || 
-                                 docHighlighting.full_line?.[0] || 
-                                 doc.match_text;
+        const highlightedDisplayContent = docHighlighting.display_content?.[0] || doc.display_content || '';
+        
+        // Use original match_text for the content field (for compatibility)
+        const originalContent = doc.match_text;
 
         // Reconstruct context from before and after arrays
         const context: string[] = [
@@ -189,10 +195,12 @@ export class IndexManager {
           file: doc.file_path,
           line: doc.line_number,
           column: doc.column_number,
-          content: highlightedContent,
+          content: originalContent,
           context: context,
           score: doc.relevance_score / 100, // Convert back to decimal
-          summary: doc.ai_summary
+          summary: doc.ai_summary,
+          // Add the highlighted display content for the UI
+          highlighted_display: highlightedDisplayContent
         };
       });
     } catch (error) {
@@ -239,15 +247,13 @@ export class IndexManager {
     };
 
     try {
-      // Add comprehensive highlighting parameters
-      const highlightParams = this.highlightService.buildSolrHighlightParams(options, {
-        preTag: '<mark class="solr-highlight">',
-        postTag: '</mark>',
-        fragmentSize: 200,
-        maxFragments: 3
-      });
-      
-      Object.assign(queryParams, highlightParams);
+      // Add simplified highlighting parameters - only highlight display_content field
+      queryParams.hl = 'true';
+      queryParams['hl.fl'] = 'display_content';
+      queryParams['hl.simple.pre'] = '<mark class="solr-highlight">';
+      queryParams['hl.simple.post'] = '</mark>';
+      queryParams['hl.fragsize'] = 300;
+      queryParams['hl.snippets'] = 1;
 
       // Filter by session if provided
       if (sessionId) {
@@ -278,6 +284,10 @@ export class IndexManager {
 
       // Convert docs to StoredSearchResult objects
       const storedResults: StoredSearchResult[] = docs.map((doc: any): StoredSearchResult => {
+        // Get simplified highlighted content
+        const docHighlighting = highlighting[doc.id] || {};
+        const highlightedDisplayContent = docHighlighting.display_content?.[0] || '';
+        
         return {
           id: doc.id,
           search_session_id: doc.search_session_id,
@@ -305,18 +315,16 @@ export class IndexManager {
           relevance_score: doc.relevance_score || 0,
           match_count_in_file: doc.match_count_in_file || 1,
           ai_summary: doc.ai_summary,
-          ai_tags: doc.ai_tags || []
+          ai_tags: doc.ai_tags || [],
+          // Add simplified highlighting content
+          display_content: doc.display_content || '',
+          // Add highlighted snippets for easy display
+          snippets: highlightedDisplayContent ? [highlightedDisplayContent] : []
         };
       });
 
-      // Apply highlighting using the service
-      const highlightedResults = this.highlightService.applySolrHighlighting(
-        storedResults, 
-        highlighting, 
-        options.query
-      );
-
-      return highlightedResults;
+      // No need for complex highlighting service - we have simple highlighted content
+      return storedResults;
     } catch (error) {
       console.error('Error searching stored results:', error);
       
@@ -457,5 +465,28 @@ export class IndexManager {
       console.error('Failed to cleanup old sessions:', error);
       throw error;
     }
+  }
+
+  /**
+   * Create formatted display content for highlighting
+   * This combines all relevant content into a single field optimized for highlighting
+   */
+  private createDisplayContent(result: SearchResult, contextBefore: string[], contextAfter: string[]): string {
+    const parts: string[] = [];
+    
+    // Add context before (without line numbers for cleaner highlighting)
+    contextBefore.forEach((line) => {
+      parts.push(line);
+    });
+    
+    // Add the main match line (marked prominently without line number)
+    parts.push(`>>> ${result.content} <<<`);
+    
+    // Add context after (without line numbers for cleaner highlighting)
+    contextAfter.forEach((line) => {
+      parts.push(line);
+    });
+    
+    return parts.join('\n');
   }
 }

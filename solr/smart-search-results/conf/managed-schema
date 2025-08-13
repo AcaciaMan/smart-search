@@ -49,39 +49,17 @@
     </analyzer>
   </fieldType>
 
-<!-- Enhanced text field type for better highlighting -->
-<fieldType name="text_highlight" class="solr.TextField" positionIncrementGap="100">
-  <analyzer type="index">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <!-- No stopwords filtering for code search - coding terms are meaningful -->
-    <filter class="solr.PorterStemFilterFactory"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-  <analyzer type="query">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <!-- No stopwords filtering for code search - coding terms are meaningful -->
-    <filter class="solr.PorterStemFilterFactory"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-</fieldType>
-
-<!-- Field type optimized for code highlighting -->
-<fieldType name="text_code_highlight" class="solr.TextField" positionIncrementGap="100">
-  <analyzer type="index">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <!-- No stopwords for code - all terms are meaningful in programming context -->
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-  <analyzer type="query">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <!-- No stopwords for code - all terms are meaningful in programming context -->
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-</fieldType>  
+  <!-- Simple text field type optimized for highlighting display -->
+  <fieldType name="text_display" class="solr.TextField" positionIncrementGap="100">
+    <analyzer type="index">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+    <analyzer type="query">
+      <tokenizer class="solr.StandardTokenizerFactory"/>
+      <filter class="solr.LowerCaseFilterFactory"/>
+    </analyzer>
+  </fieldType>
 
   <!-- Integer field -->
   <fieldType name="pint" class="solr.IntPointField" docValues="true"/>
@@ -119,7 +97,7 @@
   <!-- Match information -->
   <field name="line_number" type="pint" indexed="true" stored="true" required="true"/>
   <field name="column_number" type="pint" indexed="true" stored="true"/>
-<field name="match_text" type="text_highlight" indexed="true" stored="true" multiValued="false"/>
+  <field name="match_text" type="text_general" indexed="true" stored="true" multiValued="false"/>
   <field name="match_text_raw" type="string" indexed="false" stored="true" required="true"/>
   
   <!-- Context information -->
@@ -129,7 +107,7 @@
   <field name="context_lines_after" type="pint" indexed="true" stored="true" default="0"/>
   
   <!-- Full line content -->
-<field name="full_line" type="text_code_highlight" indexed="true" stored="true" multiValued="false"/>
+  <field name="full_line" type="text_code" indexed="true" stored="true" multiValued="false"/>
   <field name="full_line_raw" type="string" indexed="false" stored="true" required="true"/>
   
   <!-- Search metadata -->
@@ -146,12 +124,11 @@
   <field name="ai_tags" type="string" indexed="true" stored="true" multiValued="true"/>
   
   <!-- Combined search field for general queries -->
-<field name="content_all" type="text_highlight" indexed="true" stored="true" multiValued="true"/>
-<field name="code_all" type="text_code_highlight" indexed="true" stored="true" multiValued="true"/>
+  <field name="content_all" type="text_general" indexed="true" stored="true" multiValued="true"/>
+  <field name="code_all" type="text_code" indexed="true" stored="true" multiValued="true"/>
 
-<!-- Add dedicated highlighting fields -->
-<field name="content_highlight" type="text_highlight" indexed="true" stored="false" multiValued="true"/>
-<field name="code_highlight" type="text_code_highlight" indexed="true" stored="false" multiValued="true"/>
+  <!-- Single field for highlighting display - contains formatted content ready for display -->
+  <field name="display_content" type="text_display" indexed="true" stored="true" multiValued="false"/>
 
 
   <!-- Copy fields to combine content for searching -->
@@ -167,12 +144,6 @@
   <copyField source="full_line" dest="code_all"/>
   <copyField source="context_before" dest="code_all"/>
   <copyField source="context_after" dest="code_all"/>
-
-<!-- Copy fields for highlighting -->
-<copyField source="content_all" dest="content_highlight"/>
-<copyField source="code_all" dest="code_highlight"/>
-<copyField source="match_text" dest="content_highlight"/>
-<copyField source="full_line" dest="code_highlight"/>
 
   <!-- Unique key -->
   <uniqueKey>id</uniqueKey>

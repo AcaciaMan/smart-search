@@ -6,6 +6,7 @@ export interface SearchResult {
   context: string[];
   score: number;
   summary?: string;
+  highlighted_display?: string; // Highlighted content for display purposes
   submatches?: Array<{
     start: number;
     end: number;
@@ -55,7 +56,9 @@ export interface StoredSearchResult {
   match_count_in_file: number;
   ai_summary?: string;
   ai_tags?: string[];
-  // Enhanced highlighting fields
+  // Simplified highlighting field
+  display_content?: string; // Formatted content ready for highlighting display
+  // Enhanced highlighting fields (legacy)
   context_before_highlighted?: string[];
   context_after_highlighted?: string[];
   snippets?: string[];

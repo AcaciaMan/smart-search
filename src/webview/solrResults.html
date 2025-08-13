@@ -544,11 +544,24 @@
     }
 
     function getResultContent(result) {
-      // Use highlighted content if available from Solr, otherwise use original content
+      // Use simplified highlighting - display_content or snippets if available
+      if (result.snippets && result.snippets.length > 0) {
+        // Display highlighted snippets from the display_content field
+        return `
+          <div class="snippets-container">
+            <div class="snippets-title">📄 Highlighted Content:</div>
+            ${result.snippets.map(snippet => `
+              <div class="snippet">${snippet}</div>
+            `).join('')}
+          </div>
+        `;
+      }
+      
+      // Fallback to original approach if no snippets
       const highlightedMatchText = result.match_text || result.match_text_raw;
       const highlightedFullLine = result.full_line || result.full_line_raw;
-      const contextBefore = result.context_before_highlighted || result.context_before || [];
-      const contextAfter = result.context_after_highlighted || result.context_after || [];
+      const contextBefore = result.context_before || [];
+      const contextAfter = result.context_after || [];
       
       // Build content with enhanced highlighting
       let content = '';
@@ -559,7 +572,7 @@
         content += `
           <div class="context-line">
             <span class="context-line-number">${lineNumber}</span>
-            ${safelyDisplayHighlightedText(line)}
+            ${escapeHtml(line)}
           </div>
         `;
       });
@@ -570,7 +583,7 @@
       content += `
         <div class="context-line match-line">
           <span class="context-line-number">${matchLineNumber}</span>
-          <strong>${safelyDisplayHighlightedText(displayMatchLine)}</strong>
+          <strong>${escapeHtml(displayMatchLine)}</strong>
         </div>
       `;
       
@@ -580,22 +593,10 @@
         content += `
           <div class="context-line">
             <span class="context-line-number">${lineNumber}</span>
-            ${safelyDisplayHighlightedText(line)}
+            ${escapeHtml(line)}
           </div>
         `;
       });
-      
-      // Add snippets if available
-      if (result.snippets && result.snippets.length > 0) {
-        content += `
-          <div class="snippets-container">
-            <div class="snippets-title">📄 Highlighted Snippets:</div>
-            ${result.snippets.map(snippet => `
-              <div class="snippet">${safelyDisplayHighlightedText(snippet)}</div>
-            `).join('')}
-          </div>
-        `;
-      }
       
       return content;
     }
