@@ -240,14 +240,15 @@
     <div class="search-history" id="searchHistory">
         <h4>Recent Searches</h4>
         <div id="historyList">
-            <div class="history-item" onclick="searchFromHistory('TODO')">TODO</div>
-            <div class="history-item" onclick="searchFromHistory('function')">function</div>
-            <div class="history-item" onclick="searchFromHistory('import')">import</div>
+            <div class="history-item" data-search-query="TODO" data-action="search">TODO</div>
+            <div class="history-item" data-search-query="function" data-action="search">function</div>
+            <div class="history-item" data-search-query="import" data-action="search">import</div>
         </div>
     </div>
     
     <script>
-        const vscode = acquireVsCodeApi();
+        try {
+            const vscode = acquireVsCodeApi();
         
         const searchInput = document.getElementById('searchInput');
         const searchBtn = document.getElementById('searchBtn');
@@ -258,10 +259,56 @@
         const searchInResults = document.getElementById('searchInResults');
         const status = document.getElementById('status');
         
+        // Add event delegation for history items (both click and dblclick)
+        const historyList = document.getElementById('historyList');
+        
+        function handleHistoryItemClick(event) {
+            const target = event.target.closest('.history-item');
+            if (!target) return;
+            
+            const action = target.getAttribute('data-action');
+            const query = target.getAttribute('data-search-query');
+            
+            if (action === 'search') {
+                if (query) {
+                    // Decode the Base64 encoded query
+                    try {
+                        const decodedQuery = decodeURIComponent(escape(atob(query)));
+                        searchFromHistory(decodedQuery);
+                    } catch (error) {
+                        console.error('Error decoding query:', error);
+                        // Fallback to using the query as-is
+                        searchFromHistory(query);
+                    }
+                }
+            } else if (action === 'select-session') {
+                const sessionId = target.getAttribute('data-session-id');
+                if (sessionId) {
+                    const originalSessionId = unescapeHtml(sessionId);
+                    selectSession(originalSessionId);
+                }
+            }
+        }
+        
+        historyList.addEventListener('click', handleHistoryItemClick);
+        historyList.addEventListener('dblclick', handleHistoryItemClick);
+        
         // Restore state
         const state = vscode.getState() || {};
         if (state.searchHistory) {
             updateHistoryDisplay(state.searchHistory);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function unescapeHtml(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
         }
         
         function showStatus(message, type = 'loading') {
@@ -326,9 +373,13 @@
         function updateHistoryDisplay(history) {
             const historyList = document.getElementById('historyList');
             if (history && history.length > 0) {
-                historyList.innerHTML = history.map(item => 
-                    `<div class="history-item" onclick="searchFromHistory('${item}')">${item}</div>`
-                ).join('');
+                const htmlContent = history.map((item, index) => {
+                    const escapedItem = escapeHtml(item);
+                    // Use Base64 encoding to completely avoid quote issues
+                    const encodedItem = btoa(unescape(encodeURIComponent(item)));
+                    return `<div class="history-item" data-search-query="${encodedItem}" data-action="search">${escapedItem}</div>`;
+                }).join('');
+                historyList.innerHTML = htmlContent;
             }
         }
         
@@ -339,9 +390,9 @@
                 const sessionItems = sessions.map(session => {
                     const isLatest = session.sessionId === latestSessionId ? ' (Latest)' : '';
                     const timestamp = new Date(session.timestamp).toLocaleString();
-                    return `<div class="history-item" onclick="selectSession('${session.sessionId}')" title="Click to select as target for 'Search in stored results'">
-                        📋 ${session.query}${isLatest}<br>
-                        <small style="color: var(--vscode-descriptionForeground);">${timestamp} • ${session.resultCount} results</small>
+                    return `<div class="history-item" data-session-id="${escapeHtml(session.sessionId)}" data-action="select-session" title="Click to select as target for 'Search in stored results'">
+                        📋 ${escapeHtml(session.query)}${isLatest}<br>
+                        <small style="color: var(--vscode-descriptionForeground);">${escapeHtml(timestamp)} • ${session.resultCount} results</small>
                     </div>`;
                 }).join('');
                 
@@ -349,7 +400,7 @@
                 const state = vscode.getState() || {};
                 const history = state.searchHistory || [];
                 const historyItems = history.map(item => 
-                    `<div class="history-item" onclick="searchFromHistory('${item}')" title="Search again">🔍 ${item}</div>`
+                    `<div class="history-item" data-search-query="${escapeHtml(item)}" data-action="search" title="Search again">🔍 ${escapeHtml(item)}</div>`
                 ).join('');
                 
                 // Combine with divider
@@ -454,6 +505,11 @@
                     break;
             }
         });
+        
+        } catch (error) {
+            console.error('Error in searchView.html script:', error);
+            document.body.innerHTML = '<div style="color: red; padding: 20px;">Error loading search interface: ' + error.message + '</div>';
+        }
     </script>
 </body>
 </html>

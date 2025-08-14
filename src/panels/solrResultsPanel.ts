@@ -188,7 +188,21 @@ export class SolrResultsPanel extends BaseResultsPanel {
     try {
       // Use the extension URI to get the correct path
       const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'dist', 'webview', 'solrResults.html');
+      console.log('Loading HTML from:', htmlPath.fsPath);
+      
+      if (!fs.existsSync(htmlPath.fsPath)) {
+        console.error('HTML file does not exist:', htmlPath.fsPath);
+        return this.getFallbackHtml();
+      }
+      
       const htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
+      console.log('HTML content loaded, length:', htmlContent.length);
+      
+      // Validate that the HTML content is not empty and has proper structure
+      if (!htmlContent || htmlContent.length < 100 || !htmlContent.includes('</html>')) {
+        console.error('Invalid HTML content detected');
+        return this.getFallbackHtml();
+      }
       
       // Replace placeholder URLs with webview resource URIs if needed
       const webviewUri = this._panel.webview.asWebviewUri(
@@ -211,11 +225,37 @@ export class SolrResultsPanel extends BaseResultsPanel {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Solr Search Results</title>
+        <style>
+          body {
+            font-family: var(--vscode-font-family);
+            padding: 20px;
+            color: var(--vscode-foreground);
+          }
+          .error {
+            color: var(--vscode-inputValidation-errorForeground);
+            background-color: var(--vscode-inputValidation-errorBackground);
+            padding: 12px;
+            border-radius: 4px;
+          }
+        </style>
       </head>
       <body>
-        <div>Error loading Solr results template</div>
+        <div class="error">
+          <h3>Error loading Solr results template</h3>
+          <p>The Solr results panel could not be loaded properly. Please try:</p>
+          <ul>
+            <li>Restarting the extension</li>
+            <li>Recompiling the extension (npm run compile)</li>
+            <li>Checking the extension logs for more details</li>
+          </ul>
+        </div>
         <script>
-          const vscode = acquireVsCodeApi();
+          try {
+            const vscode = acquireVsCodeApi();
+            console.log('Fallback HTML loaded successfully');
+          } catch (error) {
+            console.error('Error in fallback HTML:', error);
+          }
         </script>
       </body>
       </html>

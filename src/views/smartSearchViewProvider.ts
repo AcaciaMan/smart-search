@@ -333,10 +333,24 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {
-    const htmlPath = path.join(this._extensionUri.fsPath, 'src', 'webview', 'searchView.html');
+    const htmlPath = path.join(this._extensionUri.fsPath, 'dist', 'webview', 'searchView.html');
     
     try {
+      console.log('Loading searchView HTML from:', htmlPath);
+      
+      if (!fs.existsSync(htmlPath)) {
+        console.error('SearchView HTML file does not exist:', htmlPath);
+        throw new Error('HTML file not found');
+      }
+      
       let html = fs.readFileSync(htmlPath, 'utf8');
+      console.log('SearchView HTML content loaded, length:', html.length);
+      
+      // Validate that the HTML content is not empty and has proper structure
+      if (!html || html.length < 100 || !html.includes('</html>')) {
+        console.error('Invalid searchView HTML content detected');
+        throw new Error('Invalid HTML content');
+      }
       
       // Replace any resource URLs with webview URIs if needed
       // For now, we're using inline styles and scripts
@@ -367,7 +381,16 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
       </head>
       <body>
           <div class="error">
-              Failed to load search interface. Error: ${error}
+              Failed to load search interface. Error: ${String(error).replace(/[<>&"']/g, (match) => {
+                switch(match) {
+                  case '<': return '&lt;';
+                  case '>': return '&gt;';
+                  case '&': return '&amp;';
+                  case '"': return '&quot;';
+                  case "'": return '&#x27;';
+                  default: return match;
+                }
+              })}
           </div>
       </body>
       </html>`;

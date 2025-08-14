@@ -87,6 +87,9 @@
       font-size: 12px;
       line-height: 1.4;
       border-radius: 0 4px 4px 0;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      word-wrap: break-word;
     }
     
     .snippet .highlight,
@@ -367,14 +370,28 @@
   <div id="results-container"></div>
 
   <script>
-    const vscode = acquireVsCodeApi();
-    let currentQuery = '';
-    let currentSessionId = '';
-    
-    // Settings persistence
-    let searchSettings = {
-      maxResults: 100,
-      minScore: 0,
+    try {
+      const vscode = acquireVsCodeApi();
+      let currentQuery = '';
+      let currentSessionId = '';
+      
+      // Add event delegation for result headers
+      document.addEventListener('click', (event) => {
+        const target = event.target.closest('[data-action="open-file"]');
+        if (target) {
+          const filePath = target.getAttribute('data-file-path');
+          const lineNumber = parseInt(target.getAttribute('data-line-number')) || 1;
+          const columnNumber = parseInt(target.getAttribute('data-column-number')) || 1;
+          if (filePath) {
+            openFile(filePath, lineNumber, columnNumber);
+          }
+        }
+      });
+      
+      // Settings persistence
+      let searchSettings = {
+        maxResults: 100,
+        minScore: 0,
       sortOrder: 'relevance',
       fileTypes: '',
       excludePatterns: '',
@@ -517,88 +534,116 @@
         return;
       }
 
-      container.innerHTML = results.map(result => `
+      container.innerHTML = results.map(result => {
+        // Safely prepare all values first
+        const filePath = escapeHtml(result.file_path || '');
+        const lineNumber = result.line_number || 0;
+        const columnNumber = result.column_number || 0;
+        const relevanceScore = (result.relevance_score || 0).toFixed(2);
+        const sessionId = escapeHtml(result.search_session_id || '');
+        const originalQuery = escapeHtml(result.original_query || '');
+        const fileSize = result.file_size ? formatFileSize(result.file_size) : 'N/A';
+        const fileModified = result.file_modified ? new Date(result.file_modified).toLocaleDateString() : 'N/A';
+        const aiSummary = result.ai_summary ? escapeHtml(result.ai_summary) : '';
+        
+        // Get the result content safely
+        const resultContent = getResultContent(result);
+        
+        // Build the HTML safely
+        let html = `
         <div class="result-item">
-          <div class="result-header" onclick="openFile(${JSON.stringify(result.file_path)}, ${result.line_number}, ${result.column_number})">
-            <span class="file-path">${escapeHtml(result.file_path)}</span>
-            <span class="line-info">Line ${result.line_number}, Column ${result.column_number}</span>
+          <div class="result-header" data-file-path="${escapeHtml(result.file_path || '')}" data-line-number="${lineNumber}" data-column-number="${columnNumber}" data-action="open-file">>
+            <span class="file-path">${filePath}</span>
+            <span class="line-info">Line ${lineNumber}, Column ${columnNumber}</span>
           </div>
           <div class="result-content">
-            ${getResultContent(result)}
+            ${resultContent}
             <div class="metadata">
-              <span class="score">Score: ${result.relevance_score.toFixed(2)}</span>
-              <span>Session: ${escapeHtml(result.search_session_id)}</span>
-              <span class="original-query">Original: "${escapeHtml(result.original_query)}"</span>
-              <span>Size: ${result.file_size ? formatFileSize(result.file_size) : 'N/A'}</span>
-              <span>Modified: ${result.file_modified ? new Date(result.file_modified).toLocaleDateString() : 'N/A'}</span>
-            </div>
-            ${result.ai_tags && result.ai_tags.length > 0 ? `
-              <div class="tags">
-                ${result.ai_tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
-              </div>
-            ` : ''}
-            ${result.ai_summary ? `<div class="summary">${escapeHtml(result.ai_summary)}</div>` : ''}
+              <span class="score">Score: ${relevanceScore}</span>
+              <span>Session: ${sessionId}</span>
+              <span class="original-query">Original: "${originalQuery}"</span>
+              <span>Size: ${fileSize}</span>
+              <span>Modified: ${fileModified}</span>
+            </div>`;
+            
+        // Add AI tags if present
+        if (result.ai_tags && result.ai_tags.length > 0) {
+          html += `
+            <div class="tags">
+              ${result.ai_tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+            </div>`;
+        }
+        
+        // Add AI summary if present
+        if (aiSummary) {
+          html += `<div class="summary">${aiSummary}</div>`;
+        }
+        
+        html += `
           </div>
-        </div>
-      `).join('');
+        </div>`;
+        
+        return html;
+      }).join('');
     }
 
     function getResultContent(result) {
-      // Use simplified highlighting - display_content or snippets if available
-      if (result.snippets && result.snippets.length > 0) {
-        // Display highlighted snippets from the display_content field
-        return `
-          <div class="snippets-container">
-            <div class="snippets-title">📄 Highlighted Content:</div>
-            ${result.snippets.map(snippet => `
-              <div class="snippet">${snippet}</div>
-            `).join('')}
-          </div>
-        `;
+      try {
+        // Use simplified highlighting - display_content or snippets if available
+        if (result.snippets && result.snippets.length > 0) {
+          // Display highlighted snippets from the display_content field
+          let html = '<div class="snippets-container">';
+          html += '<div class="snippets-title">📄 Highlighted Content:</div>';
+          
+          result.snippets.forEach(snippet => {
+            const safeSnippet = safelyDisplayHighlightedText(snippet);
+            html += '<pre class="snippet">' + safeSnippet + '</pre>';
+          });
+          
+          html += '</div>';
+          return html;
+        }
+        
+        // Fallback to original approach if no snippets
+        const highlightedMatchText = result.match_text || result.match_text_raw;
+        const highlightedFullLine = result.full_line || result.full_line_raw;
+        const contextBefore = result.context_before || [];
+        const contextAfter = result.context_after || [];
+        
+        // Build content with enhanced highlighting
+        let content = '';
+        
+        // Add context before
+        contextBefore.forEach((line, index) => {
+          const lineNumber = result.line_number - contextBefore.length + index;
+          content += '<div class="context-line">';
+          content += '<span class="context-line-number">' + lineNumber + '</span>';
+          content += escapeHtml(line || '');
+          content += '</div>';
+        });
+        
+        // Add the main match line
+        const matchLineNumber = result.line_number || 0;
+        const displayMatchLine = highlightedFullLine || highlightedMatchText || '';
+        content += '<div class="context-line match-line">';
+        content += '<span class="context-line-number">' + matchLineNumber + '</span>';
+        content += '<strong>' + escapeHtml(displayMatchLine) + '</strong>';
+        content += '</div>';
+        
+        // Add context after
+        contextAfter.forEach((line, index) => {
+          const lineNumber = (result.line_number || 0) + index + 1;
+          content += '<div class="context-line">';
+          content += '<span class="context-line-number">' + lineNumber + '</span>';
+          content += escapeHtml(line || '');
+          content += '</div>';
+        });
+        
+        return content;
+      } catch (error) {
+        console.error('Error in getResultContent:', error);
+        return '<div class="error">Error displaying content</div>';
       }
-      
-      // Fallback to original approach if no snippets
-      const highlightedMatchText = result.match_text || result.match_text_raw;
-      const highlightedFullLine = result.full_line || result.full_line_raw;
-      const contextBefore = result.context_before || [];
-      const contextAfter = result.context_after || [];
-      
-      // Build content with enhanced highlighting
-      let content = '';
-      
-      // Add context before
-      contextBefore.forEach((line, index) => {
-        const lineNumber = result.line_number - contextBefore.length + index;
-        content += `
-          <div class="context-line">
-            <span class="context-line-number">${lineNumber}</span>
-            ${escapeHtml(line)}
-          </div>
-        `;
-      });
-      
-      // Add the main match line
-      const matchLineNumber = result.line_number;
-      const displayMatchLine = highlightedFullLine || highlightedMatchText;
-      content += `
-        <div class="context-line match-line">
-          <span class="context-line-number">${matchLineNumber}</span>
-          <strong>${escapeHtml(displayMatchLine)}</strong>
-        </div>
-      `;
-      
-      // Add context after
-      contextAfter.forEach((line, index) => {
-        const lineNumber = result.line_number + index + 1;
-        content += `
-          <div class="context-line">
-            <span class="context-line-number">${lineNumber}</span>
-            ${escapeHtml(line)}
-          </div>
-        `;
-      });
-      
-      return content;
     }
     
     /**
@@ -694,6 +739,11 @@
     document.addEventListener('DOMContentLoaded', () => {
       updateSettingsUI();
     });
+    
+    } catch (error) {
+      console.error('Error in solrResults.html script:', error);
+      document.body.innerHTML = '<div style="color: red; padding: 20px;">Error loading results panel: ' + error.message + '</div>';
+    }
   </script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 {
   "name": "smart-search-ripsolr",
   "displayName": "Smart Search with Ripgrep and Solr",
-  "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries",
-  "version": "0.0.7",
+  "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, AI summaries, and advanced field-specific query syntax",
+  "version": "0.1.0",
   "publisher": "manacacia",
   "repository": {
     "type": "git",
@@ -87,6 +87,11 @@
           "type": "number",
           "default": 100,
           "description": "Maximum number of search results to display"
+        },
+        "smart-search.defaultSolrFields": {
+          "type": "string",
+          "default": "content_all,code_all",
+          "description": "Default Solr fields to search in (comma-separated). Users can still specify custom field queries like 'file_name:*.js'"
         }
       }
     }

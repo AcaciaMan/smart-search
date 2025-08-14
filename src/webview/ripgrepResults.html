@@ -256,6 +256,19 @@
       maxResults: 100
     };
     
+    // Add event delegation for result headers
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-action="open-file"]');
+      if (target) {
+        const filePath = target.getAttribute('data-file-path');
+        const lineNumber = parseInt(target.getAttribute('data-line-number')) || 1;
+        const columnNumber = parseInt(target.getAttribute('data-column-number')) || 1;
+        if (filePath) {
+          openFile(filePath, lineNumber, columnNumber);
+        }
+      }
+    });
+    
     function openFile(file, line, column) {
       vscode.postMessage({
         command: 'openFile',
@@ -357,7 +370,7 @@
 
       container.innerHTML = results.map(result => `
         <div class="result-item">
-          <div class="result-header" onclick="openFile(${JSON.stringify(result.file)}, ${result.line}, ${result.column})">
+          <div class="result-header" data-file-path="${escapeHtml(result.file)}" data-line-number="${result.line || 1}" data-column-number="${result.column || 1}" data-action="open-file">>
             <span class="file-path">${escapeHtml(result.file)}</span>
             <span class="line-info">Line ${result.line}, Column ${result.column}</span>
           </div>

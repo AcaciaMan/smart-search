@@ -50,6 +50,53 @@ See the detailed configuration guide: [SOLR_HIGHLIGHTING_CONFIG.md](SOLR_HIGHLIG
 - Enter your search query and press Enter
 - Results will appear in a dedicated panel
 
+### Enhanced Query Syntax (New!)
+
+Smart Search now supports both simple queries and advanced Solr field-specific queries:
+
+#### Simple Queries (Default)
+```text
+function          → Searches in configured default fields (content_all, code_all)
+"exact phrase"    → Phrase search across default fields
+test AND bug      → Boolean search across default fields
+```
+
+#### Advanced Field-Specific Queries
+```text
+file_name:*.js                           → Find JavaScript files
+match_text:function AND file_extension:ts → Functions in TypeScript files  
+ai_summary:"bug fix"                     → Files with "bug fix" in AI summary
+relevance_score:[50 TO *]               → High relevance results only
+line_number:[1 TO 100]                  → Results from first 100 lines
+file_path:src/services/*.ts             → Files in services directory
+search_session_id:session_*             → Results from specific sessions
+```
+
+#### Available Search Fields
+- **Content Fields**: `content_all`, `code_all`, `match_text`, `full_line`, `ai_summary`
+- **File Fields**: `file_name`, `file_path`, `file_extension`  
+- **Metadata Fields**: `line_number`, `column_number`, `relevance_score`, `file_size`
+- **Session Fields**: `search_session_id`, `original_query`, `search_timestamp`
+- **Boolean Fields**: `case_sensitive`, `whole_word`
+
+#### Query Examples
+```text
+# Find React components
+file_name:*Component.tsx
+
+# Find high-value functions  
+match_text:function AND relevance_score:[75 TO *]
+
+# Find recent bug fixes
+ai_summary:bug AND search_timestamp:[NOW-7DAY TO NOW]
+
+# Find large files with specific content
+match_text:import AND file_size:[10000 TO *]
+
+# Complex query combining multiple fields
+file_extension:js AND match_text:async AND line_number:[1 TO 50]
+```
+
 ### Search Settings
 Both ripgrep and Solr result panels include collapsible settings panels for fine-tuning search results:
 
@@ -84,6 +131,23 @@ The extension can be configured through VS Code settings:
 - `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
 - `smart-search.maxResults`: Maximum number of search results (default: 100)
+- `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
+
+### Default Search Fields Configuration
+
+You can customize which fields are searched by default for simple queries:
+
+```json
+{
+  "smart-search.defaultSolrFields": "content_all,code_all,ai_summary"
+}
+```
+
+**Examples:**
+- `"content_all"` - Search only in content
+- `"content_all,code_all"` - Search in content and code (default)  
+- `"match_text,file_name,file_path"` - Search in specific fields only
+- `"content_all,code_all,ai_summary"` - Include AI summaries in default search
 
 ## Requirements
 

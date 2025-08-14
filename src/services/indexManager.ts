@@ -141,7 +141,7 @@ export class IndexManager {
       const sanitizedQuery = this.sanitizeQuery(options.query);
       
       const queryParams: any = {
-        q: `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`,
+        q: this.buildSolrQuery(options.query),
         rows: options.maxResults || 100,
         wt: 'json',
         // Simplified highlighting - only highlight the display field
@@ -228,6 +228,104 @@ export class IndexManager {
   }
 
   /**
+   * Build Solr query - supports both default field search and custom field queries
+   * 
+   * This method provides flexible query building:
+   * 1. Simple queries (e.g., "function") are automatically expanded to search configured default fields
+   * 2. Field-specific queries (e.g., "file_name:*.js") are passed through with sanitization
+   * 
+   * Examples:
+   * - Simple: "test" → "content_all:(test) OR code_all:(test)"
+   * - Field-specific: "file_name:*.js" → "file_name:*.js"  
+   * - Complex: "match_text:function AND file_extension:js" → "match_text:function AND file_extension:js"
+   * - Range: "relevance_score:[50 TO *]" → "relevance_score:[50 TO *]"
+   * - Boolean: "error AND NOT deprecated" → "content_all:(error AND NOT deprecated) OR code_all:(error AND NOT deprecated)"
+   * 
+   * Configuration:
+   * - Default fields are controlled by 'smart-search.defaultSolrFields' setting
+   * - Default: "content_all,code_all" 
+   * - Can be customized to any combination of indexed fields
+   * 
+   * Available Fields:
+   * - Content: content_all, code_all, match_text, full_line, ai_summary, display_content
+   * - Files: file_name, file_path, file_extension  
+   * - Metadata: line_number, column_number, relevance_score, file_size, match_count_in_file
+   * - Session: search_session_id, original_query, search_timestamp, file_modified, workspace_path
+   * - Boolean: case_sensitive, whole_word
+   * - Tags: ai_tags, match_type
+   * 
+   * Query Detection:
+   * - Detects field specifications using regex: /\w+:/
+   * - Ignores quoted strings that start with quotes
+   * - Sanitizes special characters to prevent Solr errors
+   * 
+   * @param query - User's search query (simple text or field-specific syntax)
+   * @returns Formatted Solr query string ready for execution
+   */
+  private buildSolrQuery(query: string): string {
+    if (!query || typeof query !== 'string') {
+      return '*:*';
+    }
+
+    const trimmedQuery = query.trim();
+    
+    // Check if query already contains field specifications (contains colon not in quotes)
+    const hasFieldSpec = /\w+:/.test(trimmedQuery) && !trimmedQuery.startsWith('"');
+    
+    if (hasFieldSpec) {
+      // User specified custom fields - use query as-is but still sanitize individual terms
+      return this.sanitizeFieldQuery(trimmedQuery);
+    } else {
+      // Default behavior - search in configured default fields
+      const defaultFields = vscode.workspace.getConfiguration('smart-search').get('defaultSolrFields', 'content_all,code_all');
+      const fields = defaultFields.split(',').map(f => f.trim()).filter(f => f);
+      
+      const sanitizedQuery = this.sanitizeQuery(trimmedQuery);
+      
+      if (fields.length === 0) {
+        // Fallback if no fields configured
+        return `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`;
+      } else if (fields.length === 1) {
+        // Single field
+        return `${fields[0]}:(${sanitizedQuery})`;
+      } else {
+        // Multiple fields with OR
+        return fields.map(field => `${field}:(${sanitizedQuery})`).join(' OR ');
+      }
+    }
+  }
+
+  /**
+   * Sanitize field-specific queries while preserving field specifications
+   */
+  private sanitizeFieldQuery(query: string): string {
+    // Split on spaces but preserve quoted strings and field specifications
+    const parts = query.match(/[^\s"']+:"[^"]*"|[^\s"']+:'[^']*'|[^\s]+/g) || [];
+    
+    return parts.map(part => {
+      if (part.includes(':')) {
+        // This is a field:value pair
+        const [field, ...valueParts] = part.split(':');
+        const value = valueParts.join(':');
+        
+        // Don't sanitize wildcard queries or quoted strings
+        if (value.startsWith('"') && value.endsWith('"')) {
+          return part; // Quoted string - leave as-is
+        } else if (value.includes('*') || value.includes('?')) {
+          return part; // Wildcard query - leave as-is
+        } else {
+          // Sanitize the value part
+          const sanitizedValue = this.sanitizeQuery(value);
+          return `${field}:${sanitizedValue}`;
+        }
+      } else {
+        // Regular term without field specification
+        return this.sanitizeQuery(part);
+      }
+    }).join(' ');
+  }
+
+  /**
    * Search within previously stored ripgrep results and return detailed StoredSearchResult objects
    */
   async searchStoredResultsDetailed(options: SearchOptions, sessionId?: string): Promise<StoredSearchResult[]> {
@@ -239,7 +337,7 @@ export class IndexManager {
     
     // Build base query parameters
     const queryParams: any = {
-      q: `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`,
+      q: this.buildSolrQuery(options.query),
       rows: options.maxResults || 100,
       wt: 'json',
       sort: 'relevance_score desc, search_timestamp desc',
