@@ -57,8 +57,36 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'clearPersistedSettings':
           this.clearPersistedSettings();
           break;
+        case 'getSuggestions':
+          await this.getSuggestions(data.query, data.sessionId);
+          break;
       }
     });
+  }
+
+  private async getSuggestions(query: string, sessionId?: string) {
+    if (!this._view) {
+      return;
+    }
+
+    try {
+      const indexManager = new IndexManager();
+      // Always prioritize the latest session ID if no specific session is provided
+      const targetSessionId = sessionId || this.latestSessionId;
+      const suggestions = await indexManager.getSuggestions(query, targetSessionId);
+      
+      this._view.webview.postMessage({
+        type: 'suggestions',
+        suggestions: suggestions
+      });
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+      // Send empty suggestions on error
+      this._view.webview.postMessage({
+        type: 'suggestions',
+        suggestions: []
+      });
+    }
   }
 
   private async performSearch(query: string, options: any = {}) {

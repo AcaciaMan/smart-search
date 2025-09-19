@@ -587,4 +587,178 @@ export class IndexManager {
     
     return parts.join('\n');
   }
+
+  /**
+   * Get auto-suggestions based on indexed terms, always prioritizing the last session data
+   */
+  async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10): Promise<string[]> {
+    if (!partialQuery || partialQuery.length < 2) {
+      return [];
+    }
+
+    try {
+      const sessionSuggestions = new Set<string>();
+      const globalSuggestions = new Set<string>();
+
+      // PRIORITY 1: Always check session data first if available
+      if (sessionId) {
+        const sessionResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
+          params: {
+            'q': `session_id:${sessionId}`,
+            'fl': 'content,file_name,file_path,original_query',
+            'rows': 200, // Get more session data for better suggestions
+            'wt': 'json'
+          }
+        });
+
+        if (sessionResponse.data?.response?.docs) {
+          sessionResponse.data.response.docs.forEach((doc: any) => {
+            // Extract words from content that match the partial query
+            if (doc.content) {
+              const words = doc.content.match(/\b[\w"']+/g) || []; // Include quoted phrases
+              words.forEach((word: string) => {
+                const cleanWord = word.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
+                if (cleanWord.toLowerCase().startsWith(partialQuery.toLowerCase()) && cleanWord.length > partialQuery.length) {
+                  sessionSuggestions.add(cleanWord);
+                }
+                // Also suggest with quotes for exact matches
+                if (partialQuery.startsWith('"') && cleanWord.toLowerCase().includes(partialQuery.slice(1).toLowerCase())) {
+                  sessionSuggestions.add(`"${cleanWord}"`);
+                }
+              });
+
+              // Look for multi-word phrases in content
+              const phraseMatches = doc.content.match(new RegExp(`\\b\\w*${partialQuery.toLowerCase()}\\w*\\b`, 'gi')) || [];
+              phraseMatches.forEach((phrase: string) => {
+                if (phrase.length > partialQuery.length) {
+                  sessionSuggestions.add(phrase);
+                }
+              });
+            }
+            
+            // Prioritize file names and paths from session
+            if (doc.file_name && doc.file_name.toLowerCase().includes(partialQuery.toLowerCase())) {
+              sessionSuggestions.add(doc.file_name);
+            }
+            
+            // Include path components
+            if (doc.file_path) {
+              const pathParts = doc.file_path.split(/[/\\]/).filter((part: string) => 
+                part.toLowerCase().includes(partialQuery.toLowerCase()) && part.length > partialQuery.length
+              );
+              pathParts.forEach((part: string) => sessionSuggestions.add(part));
+            }
+
+            // Include the original query if it matches
+            if (doc.original_query && doc.original_query.toLowerCase().includes(partialQuery.toLowerCase())) {
+              sessionSuggestions.add(doc.original_query);
+            }
+          });
+        }
+      }
+
+      // PRIORITY 2: Get global suggestions from terms component (only if we need more)
+      const remainingLimit = Math.max(0, limit - sessionSuggestions.size);
+      if (remainingLimit > 0) {
+        const termsResponse = await axios.get(`${this.solrUrl}/smart-search-results/terms`, {
+          params: {
+            'terms.fl': 'content',
+            'terms.prefix': partialQuery.toLowerCase(),
+            'terms.limit': remainingLimit * 2,
+            'terms.raw': 'true',
+            'wt': 'json'
+          }
+        });
+
+        if (termsResponse.data?.terms?.content) {
+          const terms = termsResponse.data.terms.content;
+          // Terms come as [term1, count1, term2, count2, ...]
+          for (let i = 0; i < terms.length; i += 2) {
+            const term = terms[i];
+            if (term && typeof term === 'string' && term.toLowerCase().startsWith(partialQuery.toLowerCase())) {
+              // Only add if not already in session suggestions
+              if (!sessionSuggestions.has(term)) {
+                globalSuggestions.add(term);
+              }
+            }
+          }
+        }
+      }
+
+      // PRIORITY 3: Field-specific suggestions (lower priority)
+      if (partialQuery.includes(':')) {
+        const [field, value] = partialQuery.split(':', 2);
+        if (value && value.length > 1) {
+          const fieldSuggestions = await this.getFieldSuggestions(field.trim(), value.trim(), Math.max(0, limit - sessionSuggestions.size - globalSuggestions.size));
+          fieldSuggestions.forEach(suggestion => {
+            const fullSuggestion = `${field}:${suggestion}`;
+            if (!sessionSuggestions.has(fullSuggestion)) {
+              globalSuggestions.add(fullSuggestion);
+            }
+          });
+        }
+      }
+
+      // Combine suggestions with session data first (highest priority)
+      const finalSuggestions = [
+        ...Array.from(sessionSuggestions),
+        ...Array.from(globalSuggestions)
+      ];
+
+      return finalSuggestions
+        .sort((a, b) => {
+          // Prioritize exact prefix matches
+          const aExact = a.toLowerCase().startsWith(partialQuery.toLowerCase());
+          const bExact = b.toLowerCase().startsWith(partialQuery.toLowerCase());
+          if (aExact && !bExact) return -1;
+          if (!aExact && bExact) return 1;
+          
+          // Then sort by length (shorter matches first)
+          return a.length - b.length;
+        })
+        .slice(0, limit);
+
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get suggestions for specific fields
+   */
+  private async getFieldSuggestions(field: string, partialValue: string, limit: number): Promise<string[]> {
+    try {
+      const suggestions = new Set<string>();
+      
+      // Use faceting to get field values
+      const facetResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
+        params: {
+          'q': `${field}:${partialValue}*`,
+          'rows': 0,
+          'facet': 'true',
+          'facet.field': field,
+          'facet.limit': limit,
+          'facet.mincount': 1,
+          'wt': 'json'
+        }
+      });
+
+      if (facetResponse.data?.facet_counts?.facet_fields?.[field]) {
+        const facets = facetResponse.data.facet_counts.facet_fields[field];
+        // Facets come as [value1, count1, value2, count2, ...]
+        for (let i = 0; i < facets.length; i += 2) {
+          const value = facets[i];
+          if (value && typeof value === 'string') {
+            suggestions.add(value);
+          }
+        }
+      }
+
+      return Array.from(suggestions);
+    } catch (error) {
+      console.error(`Error getting field suggestions for ${field}:`, error);
+      return [];
+    }
+  }
 }

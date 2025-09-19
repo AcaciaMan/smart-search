@@ -190,11 +190,61 @@
         .history-item small {
             font-size: 0.75em;
         }
+
+        /* Suggestion dropdown styles */
+        .search-input-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--vscode-widget-border);
+        }
+        
+        .suggestion-item:hover,
+        .suggestion-item.selected {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+        
+        .suggestion-text {
+            font-family: var(--vscode-editor-font-family);
+        }
+        
+        .suggestion-context {
+            font-size: 0.8em;
+            color: var(--vscode-descriptionForeground);
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="search-container">
-        <input type="text" id="searchInput" class="search-input" placeholder="Enter search query..." />
+        <div class="search-input-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Enter search query..." />
+            <div id="suggestionsDropdown" class="suggestions-dropdown"></div>
+        </div>
         
         <div class="search-options">
             <label class="option-checkbox">
@@ -440,6 +490,116 @@
                 performSearch();
             }
         });
+
+        // Auto-suggestion functionality
+        let suggestionTimeout;
+        let selectedSuggestionIndex = -1;
+        let currentSuggestions = [];
+        const suggestionsDropdown = document.getElementById('suggestionsDropdown');
+
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(suggestionTimeout);
+            const query = e.target.value.trim();
+            
+            if (query.length < 2) {
+                hideSuggestions();
+                return;
+            }
+
+            // Debounce the suggestion request
+            suggestionTimeout = setTimeout(() => {
+                getSuggestions(query);
+            }, 300);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (currentSuggestions.length === 0) return;
+
+            switch (e.key) {
+                case 'ArrowDown':
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.min(selectedSuggestionIndex + 1, currentSuggestions.length - 1);
+                    updateSuggestionSelection();
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    selectedSuggestionIndex = Math.max(selectedSuggestionIndex - 1, -1);
+                    updateSuggestionSelection();
+                    break;
+                case 'Enter':
+                    if (selectedSuggestionIndex >= 0) {
+                        e.preventDefault();
+                        applySuggestion(currentSuggestions[selectedSuggestionIndex]);
+                    }
+                    break;
+                case 'Escape':
+                    hideSuggestions();
+                    break;
+            }
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-input-container')) {
+                hideSuggestions();
+            }
+        });
+
+        function getSuggestions(query) {
+            // Always use latest session - let backend prioritize latest session data
+            vscode.postMessage({
+                type: 'getSuggestions',
+                query: query
+                // No sessionId - backend will use latest session automatically
+            });
+        }
+
+        function showSuggestions(suggestions) {
+            currentSuggestions = suggestions;
+            selectedSuggestionIndex = -1;
+
+            if (suggestions.length === 0) {
+                hideSuggestions();
+                return;
+            }
+
+            const html = suggestions.map((suggestion, index) => 
+                `<div class="suggestion-item" data-index="${index}">
+                    <span class="suggestion-text">${escapeHtml(suggestion)}</span>
+                </div>`
+            ).join('');
+
+            suggestionsDropdown.innerHTML = html;
+            suggestionsDropdown.style.display = 'block';
+
+            // Add click handlers
+            suggestionsDropdown.querySelectorAll('.suggestion-item').forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    applySuggestion(suggestions[index]);
+                });
+            });
+        }
+
+        function hideSuggestions() {
+            suggestionsDropdown.style.display = 'none';
+            currentSuggestions = [];
+            selectedSuggestionIndex = -1;
+        }
+
+        function updateSuggestionSelection() {
+            const items = suggestionsDropdown.querySelectorAll('.suggestion-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('selected', index === selectedSuggestionIndex);
+            });
+        }
+
+        function applySuggestion(suggestion) {
+            searchInput.value = suggestion;
+            hideSuggestions();
+            searchInput.focus();
+            // Position cursor at the end
+            searchInput.setSelectionRange(suggestion.length, suggestion.length);
+        }
         
         function showPersistedSettingsIndicator() {
             document.getElementById('persistedSettingsInfo').classList.remove('hidden');
@@ -485,6 +645,10 @@
                     sessionInfo.textContent = `session ${message.sessionId.substring(0, 8)}...`;
                     showStatus('Session selected for "Search in stored results"', 'success');
                     setTimeout(hideStatus, 2000);
+                    break;
+                    
+                case 'suggestions':
+                    showSuggestions(message.suggestions || []);
                     break;
                     
                 case 'newSessionCreated':
