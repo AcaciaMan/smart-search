@@ -2,16 +2,22 @@ import * as vscode from 'vscode';
 import axios from 'axios';
 import { SearchResult, SearchOptions, StoredSearchResult } from '../types';
 import { HighlightService } from './highlightService';
+import { SolrQueryBuilder } from './solrQueryBuilder';
+import { SolrSessionManager } from './solrSessionManager';
 import * as path from 'path';
 import * as fs from 'fs';
 
 export class IndexManager {
   private solrUrl: string;
   private highlightService: HighlightService;
+  private queryBuilder: SolrQueryBuilder;
+  private sessionManager: SolrSessionManager;
 
   constructor() {
     this.solrUrl = vscode.workspace.getConfiguration('smart-search').get('solrUrl', 'http://localhost:8983/solr');
     this.highlightService = new HighlightService();
+    this.queryBuilder = new SolrQueryBuilder();
+    this.sessionManager = new SolrSessionManager(this.solrUrl);
   }
 
   /**
@@ -87,7 +93,7 @@ export class IndexManager {
         ai_summary: result.summary || '', // Empty string instead of undefined
         ai_tags: result.summary ? [result.summary.split(' ').slice(0, 3).join(' ')] : [], // Empty array instead of undefined
         // Single display field for highlighting - combines all content for easy highlighting
-        display_content: this.createDisplayContent(result, contextBefore, contextAfter)
+        display_content: this.queryBuilder.createDisplayContent(result, contextBefore, contextAfter)
       };
 
       // Remove undefined/null values to avoid Solr issues
@@ -137,38 +143,19 @@ export class IndexManager {
    */
   async searchStoredResults(options: SearchOptions, sessionId?: string): Promise<SearchResult[]> {
     try {
-      // Sanitize the query to prevent 400 errors from special characters
-      const sanitizedQuery = this.sanitizeQuery(options.query);
-      
-      const queryParams: any = {
-        q: this.buildSolrQuery(options.query),
-        rows: options.maxResults || 100,
-        wt: 'json',
-        // Simplified highlighting - only highlight the display field
-        hl: 'true',
-        'hl.fl': 'display_content',
-        'hl.simple.pre': '<mark class="highlight">',
-        'hl.simple.post': '</mark>',
-        'hl.fragsize': 300,
-        'hl.snippets': 1,
-        sort: 'relevance_score desc, search_timestamp desc',
-        fl: '*,score'
-      };
-
-      // Filter by session if provided
-      if (sessionId) {
-        queryParams.fq = `search_session_id:${sessionId}`;
+      // If no sessionId provided, use the most recent session
+      if (!sessionId) {
+        const mostRecentSessionId = await this.sessionManager.getMostRecentSessionId();
+        if (mostRecentSessionId) {
+          sessionId = mostRecentSessionId;
+          console.log(`No sessionId provided, using most recent session: ${sessionId}`);
+        } else {
+          console.log('No sessions available to search');
+          return [];
+        }
       }
 
-      // Apply search options as filters
-      if (options.caseSensitive !== undefined) {
-        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `case_sensitive:${options.caseSensitive}`;
-      }
-
-      if (options.wholeWord !== undefined) {
-        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `whole_word:${options.wholeWord}`;
-      }
-
+      const queryParams = this.queryBuilder.buildSearchParams(options, sessionId);
       const response = await axios.get(`${this.solrUrl}/smart-search-results/search`, {
         params: queryParams
       });
@@ -210,164 +197,29 @@ export class IndexManager {
   }
 
   /**
-   * Sanitize query string for Solr to prevent 400 errors
-   */
-  private sanitizeQuery(query: string): string {
-    if (!query || typeof query !== 'string') {
-      return '*';
-    }
-    
-    // Escape special Solr characters that could cause 400 errors
-    // Solr special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
-    const escapedQuery = query
-      .replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, '\\$&')
-      .trim();
-    
-    // If query becomes empty after escaping, use wildcard
-    return escapedQuery || '*';
-  }
-
-  /**
-   * Build Solr query - supports both default field search and custom field queries
-   * 
-   * This method provides flexible query building:
-   * 1. Simple queries (e.g., "function") are automatically expanded to search configured default fields
-   * 2. Field-specific queries (e.g., "file_name:*.js") are passed through with sanitization
-   * 
-   * Examples:
-   * - Simple: "test" → "content_all:(test) OR code_all:(test)"
-   * - Field-specific: "file_name:*.js" → "file_name:*.js"  
-   * - Complex: "match_text:function AND file_extension:js" → "match_text:function AND file_extension:js"
-   * - Range: "relevance_score:[50 TO *]" → "relevance_score:[50 TO *]"
-   * - Boolean: "error AND NOT deprecated" → "content_all:(error AND NOT deprecated) OR code_all:(error AND NOT deprecated)"
-   * 
-   * Configuration:
-   * - Default fields are controlled by 'smart-search.defaultSolrFields' setting
-   * - Default: "content_all,code_all" 
-   * - Can be customized to any combination of indexed fields
-   * 
-   * Available Fields:
-   * - Content: content_all, code_all, match_text, full_line, ai_summary, display_content
-   * - Files: file_name, file_path, file_extension  
-   * - Metadata: line_number, column_number, relevance_score, file_size, match_count_in_file
-   * - Session: search_session_id, original_query, search_timestamp, file_modified, workspace_path
-   * - Boolean: case_sensitive, whole_word
-   * - Tags: ai_tags, match_type
-   * 
-   * Query Detection:
-   * - Detects field specifications using regex: /\w+:/
-   * - Ignores quoted strings that start with quotes
-   * - Sanitizes special characters to prevent Solr errors
-   * 
-   * @param query - User's search query (simple text or field-specific syntax)
-   * @returns Formatted Solr query string ready for execution
-   */
-  private buildSolrQuery(query: string): string {
-    if (!query || typeof query !== 'string') {
-      return '*:*';
-    }
-
-    const trimmedQuery = query.trim();
-    
-    // Check if query already contains field specifications (contains colon not in quotes)
-    const hasFieldSpec = /\w+:/.test(trimmedQuery) && !trimmedQuery.startsWith('"');
-    
-    if (hasFieldSpec) {
-      // User specified custom fields - use query as-is but still sanitize individual terms
-      return this.sanitizeFieldQuery(trimmedQuery);
-    } else {
-      // Default behavior - search in configured default fields
-      const defaultFields = vscode.workspace.getConfiguration('smart-search').get('defaultSolrFields', 'content_all,code_all');
-      const fields = defaultFields.split(',').map(f => f.trim()).filter(f => f);
-      
-      const sanitizedQuery = this.sanitizeQuery(trimmedQuery);
-      
-      if (fields.length === 0) {
-        // Fallback if no fields configured
-        return `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`;
-      } else if (fields.length === 1) {
-        // Single field
-        return `${fields[0]}:(${sanitizedQuery})`;
-      } else {
-        // Multiple fields with OR
-        return fields.map(field => `${field}:(${sanitizedQuery})`).join(' OR ');
-      }
-    }
-  }
-
-  /**
-   * Sanitize field-specific queries while preserving field specifications
-   */
-  private sanitizeFieldQuery(query: string): string {
-    // Split on spaces but preserve quoted strings and field specifications
-    const parts = query.match(/[^\s"']+:"[^"]*"|[^\s"']+:'[^']*'|[^\s]+/g) || [];
-    
-    return parts.map(part => {
-      if (part.includes(':')) {
-        // This is a field:value pair
-        const [field, ...valueParts] = part.split(':');
-        const value = valueParts.join(':');
-        
-        // Don't sanitize wildcard queries or quoted strings
-        if (value.startsWith('"') && value.endsWith('"')) {
-          return part; // Quoted string - leave as-is
-        } else if (value.includes('*') || value.includes('?')) {
-          return part; // Wildcard query - leave as-is
-        } else {
-          // Sanitize the value part
-          const sanitizedValue = this.sanitizeQuery(value);
-          return `${field}:${sanitizedValue}`;
-        }
-      } else {
-        // Regular term without field specification
-        return this.sanitizeQuery(part);
-      }
-    }).join(' ');
-  }
-
-  /**
    * Search within previously stored ripgrep results and return detailed StoredSearchResult objects
    */
   async searchStoredResultsDetailed(options: SearchOptions, sessionId?: string): Promise<StoredSearchResult[]> {
-    console.log(`Searching stored results for query: "${options.query}" in session: ${sessionId || 'any'}`);
+    console.log(`Searching stored results for query: "${options.query}" in session: ${sessionId || 'auto-detect'}`);
+    
+    // If no sessionId provided, use the most recent session
+    if (!sessionId) {
+      const mostRecentSessionId = await this.sessionManager.getMostRecentSessionId();
+      if (mostRecentSessionId) {
+        sessionId = mostRecentSessionId;
+        console.log(`No sessionId provided, using most recent session: ${sessionId}`);
+      } else {
+        console.log('No sessions available to search');
+        return [];
+      }
+    }
     
     // Sanitize the query to prevent 400 errors from special characters
-    const sanitizedQuery = this.sanitizeQuery(options.query);
+    const sanitizedQuery = this.queryBuilder.sanitizeQuery(options.query);
     console.log(`Original query: "${options.query}", Sanitized query: "${sanitizedQuery}"`);
-    
-    // Build base query parameters
-    const queryParams: any = {
-      q: this.buildSolrQuery(options.query),
-      rows: options.maxResults || 100,
-      wt: 'json',
-      sort: 'relevance_score desc, search_timestamp desc',
-      fl: '*,score'
-    };
 
     try {
-      // Add simplified highlighting parameters - only highlight display_content field
-      queryParams.hl = 'true';
-      queryParams['hl.fl'] = 'display_content';
-      queryParams['hl.simple.pre'] = '<mark class="solr-highlight">';
-      queryParams['hl.simple.post'] = '</mark>';
-      queryParams['hl.fragsize'] = 300;
-      queryParams['hl.snippets'] = 1;
-
-      // Filter by session if provided
-      if (sessionId) {
-        queryParams.fq = `search_session_id:${sessionId}`;
-        console.log(`Filtering by session ID: ${sessionId}`);
-      }
-
-      // Apply search options as filters
-      if (options.caseSensitive !== undefined) {
-        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `case_sensitive:${options.caseSensitive}`;
-      }
-
-      if (options.wholeWord !== undefined) {
-        queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `whole_word:${options.wholeWord}`;
-      }
-
+      const queryParams = this.queryBuilder.buildSearchParams(options, sessionId);
       console.log(`Solr query parameters:`, queryParams);
 
       const response = await axios.get(`${this.solrUrl}/smart-search-results/search`, {
@@ -421,7 +273,6 @@ export class IndexManager {
         };
       });
 
-      // No need for complex highlighting service - we have simple highlighted content
       return storedResults;
     } catch (error) {
       console.error('Error searching stored results:', error);
@@ -438,7 +289,7 @@ export class IndexManager {
         
         if (error.response?.status === 400) {
           console.error('400 Bad Request - Query parameters that caused the error:');
-          console.error('- Query params object:', JSON.stringify(queryParams, null, 2));
+          console.error('- Query params object:', JSON.stringify(error.config?.params, null, 2));
         }
       }
       
@@ -449,316 +300,20 @@ export class IndexManager {
     }
   }
 
-  /**
-   * Get list of stored search queries
-   */
+  // Delegate session management methods to SolrSessionManager
   async getStoredQueries(): Promise<string[]> {
-    try {
-      const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-        params: {
-          q: '*:*',
-          rows: 0,
-          wt: 'json',
-          facet: 'true',
-          'facet.field': 'original_query',
-          'facet.limit': 50
-        }
-      });
-
-      const facetFields = response.data.facet_counts?.facet_fields?.original_query || [];
-      const queries: string[] = [];
-      
-      // Solr returns facets as [value, count, value, count, ...]
-      for (let i = 0; i < facetFields.length; i += 2) {
-        if (facetFields[i + 1] > 0) { // Only include queries with results
-          queries.push(facetFields[i]);
-        }
-      }
-
-      return queries;
-    } catch (error) {
-      console.error('Failed to get stored queries:', error);
-      throw error;
-    }
+    return this.sessionManager.getStoredQueries();
   }
 
-  /**
-   * Get list of search sessions
-   */
   async getSearchSessions(): Promise<{ sessionId: string; query: string; timestamp: string; resultCount: number }[]> {
-    try {
-      const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-        params: {
-          q: '*:*',
-          rows: 0,
-          wt: 'json',
-          facet: 'true',
-          'facet.field': 'search_session_id',
-          'facet.limit': 100
-        }
-      });
-
-      const facetFields = response.data.facet_counts?.facet_fields?.search_session_id || [];
-      const sessions: { sessionId: string; query: string; timestamp: string; resultCount: number }[] = [];
-      
-      // Get details for each session
-      for (let i = 0; i < facetFields.length; i += 2) {
-        const sessionId = facetFields[i];
-        const resultCount = facetFields[i + 1];
-        
-        // Only include sessions with proper session ID format and positive result count
-        if (resultCount > 0 && sessionId.startsWith('session_')) {
-          // Get first document from this session to get query and timestamp
-          const sessionResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-            params: {
-              q: `search_session_id:${sessionId}`,
-              rows: 1,
-              wt: 'json',
-              fl: 'original_query,search_timestamp',
-              sort: 'search_timestamp desc'
-            }
-          });
-
-          const doc = sessionResponse.data.response.docs[0];
-          if (doc) {
-            sessions.push({
-              sessionId,
-              query: doc.original_query,
-              timestamp: doc.search_timestamp,
-              resultCount
-            });
-          }
-        }
-      }
-
-      return sessions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    } catch (error) {
-      console.error('Failed to get search sessions:', error);
-      throw error;
-    }
+    return this.sessionManager.getSearchSessions();
   }
 
-  /**
-   * Delete old search sessions (cleanup)
-   */
   async cleanupOldSessions(daysOld: number = 30): Promise<void> {
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-      const cutoffDateStr = cutoffDate.toISOString();
-
-      await axios.post(`${this.solrUrl}/smart-search-results/update`, {
-        delete: {
-          query: `search_timestamp:[* TO ${cutoffDateStr}]`
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        params: {
-          commit: true
-        }
-      });
-    } catch (error) {
-      console.error('Failed to cleanup old sessions:', error);
-      throw error;
-    }
+    return this.sessionManager.cleanupOldSessions(daysOld);
   }
 
-  /**
-   * Create formatted display content for highlighting
-   * This combines all relevant content into a single field optimized for highlighting
-   */
-  private createDisplayContent(result: SearchResult, contextBefore: string[], contextAfter: string[]): string {
-    const parts: string[] = [];
-    
-    // Add context before (without line numbers for cleaner highlighting)
-    contextBefore.forEach((line) => {
-      parts.push(line);
-    });
-    
-    // Add the main match line (marked prominently without line number)
-    parts.push(`>>> ${result.content} <<<`);
-    
-    // Add context after (without line numbers for cleaner highlighting)
-    contextAfter.forEach((line) => {
-      parts.push(line);
-    });
-    
-    return parts.join('\n');
-  }
-
-  /**
-   * Get auto-suggestions based on indexed terms, always prioritizing the last session data
-   */
   async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10): Promise<string[]> {
-    if (!partialQuery || partialQuery.length < 2) {
-      return [];
-    }
-
-    try {
-      const sessionSuggestions = new Set<string>();
-      const globalSuggestions = new Set<string>();
-
-      // PRIORITY 1: Always check session data first if available
-      if (sessionId) {
-        const sessionResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-          params: {
-            'q': `session_id:${sessionId}`,
-            'fl': 'content,file_name,file_path,original_query',
-            'rows': 200, // Get more session data for better suggestions
-            'wt': 'json'
-          }
-        });
-
-        if (sessionResponse.data?.response?.docs) {
-          sessionResponse.data.response.docs.forEach((doc: any) => {
-            // Extract words from content that match the partial query
-            if (doc.content) {
-              const words = doc.content.match(/\b[\w"']+/g) || []; // Include quoted phrases
-              words.forEach((word: string) => {
-                const cleanWord = word.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
-                if (cleanWord.toLowerCase().startsWith(partialQuery.toLowerCase()) && cleanWord.length > partialQuery.length) {
-                  sessionSuggestions.add(cleanWord);
-                }
-                // Also suggest with quotes for exact matches
-                if (partialQuery.startsWith('"') && cleanWord.toLowerCase().includes(partialQuery.slice(1).toLowerCase())) {
-                  sessionSuggestions.add(`"${cleanWord}"`);
-                }
-              });
-
-              // Look for multi-word phrases in content
-              const phraseMatches = doc.content.match(new RegExp(`\\b\\w*${partialQuery.toLowerCase()}\\w*\\b`, 'gi')) || [];
-              phraseMatches.forEach((phrase: string) => {
-                if (phrase.length > partialQuery.length) {
-                  sessionSuggestions.add(phrase);
-                }
-              });
-            }
-            
-            // Prioritize file names and paths from session
-            if (doc.file_name && doc.file_name.toLowerCase().includes(partialQuery.toLowerCase())) {
-              sessionSuggestions.add(doc.file_name);
-            }
-            
-            // Include path components
-            if (doc.file_path) {
-              const pathParts = doc.file_path.split(/[/\\]/).filter((part: string) => 
-                part.toLowerCase().includes(partialQuery.toLowerCase()) && part.length > partialQuery.length
-              );
-              pathParts.forEach((part: string) => sessionSuggestions.add(part));
-            }
-
-            // Include the original query if it matches
-            if (doc.original_query && doc.original_query.toLowerCase().includes(partialQuery.toLowerCase())) {
-              sessionSuggestions.add(doc.original_query);
-            }
-          });
-        }
-      }
-
-      // PRIORITY 2: Get global suggestions from terms component (only if we need more)
-      const remainingLimit = Math.max(0, limit - sessionSuggestions.size);
-      if (remainingLimit > 0) {
-        const termsResponse = await axios.get(`${this.solrUrl}/smart-search-results/terms`, {
-          params: {
-            'terms.fl': 'content',
-            'terms.prefix': partialQuery.toLowerCase(),
-            'terms.limit': remainingLimit * 2,
-            'terms.raw': 'true',
-            'wt': 'json'
-          }
-        });
-
-        if (termsResponse.data?.terms?.content) {
-          const terms = termsResponse.data.terms.content;
-          // Terms come as [term1, count1, term2, count2, ...]
-          for (let i = 0; i < terms.length; i += 2) {
-            const term = terms[i];
-            if (term && typeof term === 'string' && term.toLowerCase().startsWith(partialQuery.toLowerCase())) {
-              // Only add if not already in session suggestions
-              if (!sessionSuggestions.has(term)) {
-                globalSuggestions.add(term);
-              }
-            }
-          }
-        }
-      }
-
-      // PRIORITY 3: Field-specific suggestions (lower priority)
-      if (partialQuery.includes(':')) {
-        const [field, value] = partialQuery.split(':', 2);
-        if (value && value.length > 1) {
-          const fieldSuggestions = await this.getFieldSuggestions(field.trim(), value.trim(), Math.max(0, limit - sessionSuggestions.size - globalSuggestions.size));
-          fieldSuggestions.forEach(suggestion => {
-            const fullSuggestion = `${field}:${suggestion}`;
-            if (!sessionSuggestions.has(fullSuggestion)) {
-              globalSuggestions.add(fullSuggestion);
-            }
-          });
-        }
-      }
-
-      // Combine suggestions with session data first (highest priority)
-      const finalSuggestions = [
-        ...Array.from(sessionSuggestions),
-        ...Array.from(globalSuggestions)
-      ];
-
-      return finalSuggestions
-        .sort((a, b) => {
-          // Prioritize exact prefix matches
-          const aExact = a.toLowerCase().startsWith(partialQuery.toLowerCase());
-          const bExact = b.toLowerCase().startsWith(partialQuery.toLowerCase());
-          if (aExact && !bExact) return -1;
-          if (!aExact && bExact) return 1;
-          
-          // Then sort by length (shorter matches first)
-          return a.length - b.length;
-        })
-        .slice(0, limit);
-
-    } catch (error) {
-      console.error('Error getting suggestions:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get suggestions for specific fields
-   */
-  private async getFieldSuggestions(field: string, partialValue: string, limit: number): Promise<string[]> {
-    try {
-      const suggestions = new Set<string>();
-      
-      // Use faceting to get field values
-      const facetResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-        params: {
-          'q': `${field}:${partialValue}*`,
-          'rows': 0,
-          'facet': 'true',
-          'facet.field': field,
-          'facet.limit': limit,
-          'facet.mincount': 1,
-          'wt': 'json'
-        }
-      });
-
-      if (facetResponse.data?.facet_counts?.facet_fields?.[field]) {
-        const facets = facetResponse.data.facet_counts.facet_fields[field];
-        // Facets come as [value1, count1, value2, count2, ...]
-        for (let i = 0; i < facets.length; i += 2) {
-          const value = facets[i];
-          if (value && typeof value === 'string') {
-            suggestions.add(value);
-          }
-        }
-      }
-
-      return Array.from(suggestions);
-    } catch (error) {
-      console.error(`Error getting field suggestions for ${field}:`, error);
-      return [];
-    }
+    return this.sessionManager.getSuggestions(partialQuery, sessionId, limit);
   }
 }
