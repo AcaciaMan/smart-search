@@ -2,6 +2,8 @@
 
 Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries.
 
+<img width="1857" height="1135" alt="Screenshot_improved" src="https://github.com/user-attachments/assets/3686134a-eaa2-463e-9e21-fbb4e45c0525" />
+
 ## Features
 
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
