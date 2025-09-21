@@ -6,11 +6,14 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 
 ## Features
 
+- **Dual Search Modes**: Choose between Live Search (workspace files) and Session Search (stored results)
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
+- **Session-Based Search**: Search within previously stored results for rapid exploration and refinement
 - **Interactive Search Settings**: Fine-tune search results with customizable settings panels
   - **Ripgrep Settings**: Adjust context lines, file patterns, and result limits
   - **Solr Settings**: Control result scoring, sorting, file filtering, and session management
 - **Intelligent Indexing**: Optional Solr integration for advanced search and indexing capabilities
+- **Auto-Suggestions**: Smart query suggestions based on your search history and stored results
 - **AI-Powered Summaries**: Get contextual summaries of search results (when enabled)
 - **Symbol Search**: Find functions, classes, and other code symbols quickly
 - **Rich Results**: Interactive search results panel with file navigation
@@ -47,10 +50,39 @@ See the detailed configuration guide: [SOLR_HIGHLIGHTING_CONFIG.md](SOLR_HIGHLIG
 
 ## Usage
 
+### Two Search Modes
+
+Smart Search offers two distinct search modes for different use cases:
+
+#### 🔍 Live Search Mode
+- **Purpose**: Search your workspace files in real-time using ripgrep
+- **Best for**: Finding content across your entire project
+- **Features**: 
+  - Lightning-fast file search
+  - Results are automatically stored for future reference
+  - Full workspace coverage
+- **Usage**: Select the "Live Search" tab and enter your query
+
+#### 🗂️ Session Search Mode  
+- **Purpose**: Search within previously stored search results
+- **Best for**: Refining and exploring previous search results
+- **Features**:
+  - Instant results (no file system scanning)
+  - Search within specific search sessions
+  - Perfect for iterative exploration
+- **Usage**: Select the "Session Search" tab to search within stored results
+
 ### Basic Search
 - Press `Ctrl+Shift+F` (or `Cmd+Shift+F` on Mac) to open Smart Search
+- Choose your search mode (Live or Session)
 - Enter your search query and press Enter
 - Results will appear in a dedicated panel
+
+### Session Management
+- **Automatic Sessions**: Each Live Search automatically creates a new session
+- **Session Selection**: In Session Search mode, click "Change" to select a different session
+- **Session Info**: The interface shows which session you're searching and how many results it contains
+- **Recent Activity**: View and access your recent searches and sessions
 
 ### Enhanced Query Syntax (New!)
 
@@ -99,15 +131,35 @@ match_text:import AND file_size:[10000 TO *]
 file_extension:js AND match_text:async AND line_number:[1 TO 50]
 ```
 
+### Smart Suggestions
+The search interface provides intelligent auto-suggestions based on:
+- **Session Content**: Terms and phrases from your current search session
+- **Search History**: Your recent queries
+- **File Names**: Relevant file names and paths
+- **Global Terms**: Popular terms across all stored results
+
+### User Interface Features
+
+#### Modern Two-Mode Interface
+- **Tab-Based Mode Selection**: Clearly distinguish between Live and Session search
+- **Visual Feedback**: Different styling and icons for each search mode
+- **Session Info Bar**: Shows which session you're searching in Session mode
+- **Contextual Help**: Mode-specific workflow guidance
+
+#### Enhanced Search Options
+- **Organized Settings**: Search options grouped by relevance (Text Matching, Search Mode)
+- **Smart Defaults**: Session-relevant options are highlighted when appropriate
+- **Visual States**: Clear indication of active search mode and settings
+
 ### Search Settings
 Both ripgrep and Solr result panels include collapsible settings panels for fine-tuning search results:
 
-#### Ripgrep Search Settings
+#### Ripgrep Search Settings (Live Search Mode)
 - **Context Lines Before/After**: Control how many lines of context to show around matches (0-100, default: 30)
 - **Include/Exclude Files**: Filter results by file patterns (glob patterns, comma-separated)
 - **Max Results**: Limit the number of results displayed (1-1000, default: 100)
 
-#### Solr Search Settings  
+#### Solr Search Settings (Session Search Mode)
 - **Max Results**: Control the maximum number of results returned (1-1000, default: 100)
 - **Min Score**: Filter results by minimum relevance score (0-100, default: 0)
 - **Sort Order**: Choose how results are sorted (relevance, date, filename, line number)
@@ -118,13 +170,37 @@ Both ripgrep and Solr result panels include collapsible settings panels for fine
 #### Settings Persistence
 All search settings are automatically persisted and will be applied to new searches until manually changed or reset.
 
-### Advanced Search
-- **Search in Results**: Enable "Search in Results" mode to search within previously indexed ripgrep results
-- **Session Management**: When using Solr, each search creates a session that can be filtered and searched separately
+### Advanced Features
+
+#### Automatic Session Creation
+- Every Live Search automatically creates a new session with stored results
+- Sessions are automatically named and timestamped
+- Previous sessions remain available for future Session Search
+
+#### Session-Scoped Search
+- **Latest Session Priority**: Session Search defaults to your most recent session
+- **Session Switching**: Easily switch between different stored sessions
+- **Session Metadata**: View session details including result count and creation time
 
 ### Workspace Indexing
 - Use the command palette (`Ctrl+Shift+P`) and run "Smart Search: Index Workspace"
 - This will index your workspace for faster searches (requires Solr)
+
+## Key Workflows
+
+### Typical Search Workflow
+1. **Start with Live Search**: Use Live Search mode to find content across your workspace
+2. **Review Results**: Examine the search results and stored session information
+3. **Refine with Session Search**: Switch to Session Search mode to drill down within the results
+4. **Iterate**: Use Session Search to explore different aspects of your findings
+5. **Session Management**: Access previous sessions through the "Manage Sessions" button
+
+### Best Practices
+- **Use Live Search** for broad discovery across your entire workspace
+- **Use Session Search** for focused exploration and refinement
+- **Leverage Suggestions** for faster query composition
+- **Organize Sessions** by keeping related searches in the same session
+- **Monitor Session Info** to understand the scope of your current search
 
 ## Configuration
 
@@ -134,6 +210,15 @@ The extension can be configured through VS Code settings:
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
 - `smart-search.maxResults`: Maximum number of search results (default: 100)
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
+
+### Search Mode Configuration
+
+The extension automatically manages search modes, but you can influence behavior through:
+
+- **Session Management**: Sessions are automatically created and managed
+- **Default Search Scope**: Live Search is the default for new queries
+- **Session Retention**: Previous sessions are kept available for future use
+- **Auto-Suggestions**: Powered by session content and search history
 
 ### Default Search Fields Configuration
 
