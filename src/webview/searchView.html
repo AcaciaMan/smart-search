@@ -16,57 +16,182 @@
         
         .search-container {
             margin-bottom: 16px;
+            background-color: var(--vscode-editor-background);
+            border-radius: 8px;
+            border: 1px solid var(--vscode-widget-border);
+            overflow: hidden;
+        }
+        
+        /* Search Mode Toggle */
+        .search-mode-toggle {
+            display: flex;
+            background-color: var(--vscode-textCodeBlock-background);
+            border-bottom: 1px solid var(--vscode-widget-border);
+        }
+        
+        .mode-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            color: var(--vscode-descriptionForeground);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .mode-tab.active {
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-foreground);
+            border-bottom: 2px solid var(--vscode-button-background);
+        }
+        
+        .mode-tab:hover:not(.active) {
+            background-color: var(--vscode-list-hoverBackground);
+            color: var(--vscode-foreground);
+        }
+        
+        .mode-icon {
+            font-size: 1.1em;
+        }
+        
+        .search-content {
+            padding: 16px;
         }
         
         .search-input {
             width: 100%;
-            padding: 8px;
+            padding: 12px;
             background-color: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: var(--vscode-font-size);
             outline: none;
             box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
         
         .search-input:focus {
             border-color: var(--vscode-focusBorder);
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.1);
+        }
+        
+        /* Session Info Bar */
+        .session-info-bar {
+            margin-top: 12px;
+            padding: 10px 12px;
+            background: linear-gradient(135deg, var(--vscode-inputValidation-infoBackground), var(--vscode-textCodeBlock-background));
+            border: 1px solid var(--vscode-inputValidation-infoBorder);
+            border-radius: 6px;
+            font-size: 0.85em;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .session-info-bar.active {
+            display: flex;
+        }
+        
+        .session-info-icon {
+            font-size: 1.1em;
+            color: var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .session-info-text {
+            flex: 1;
+            color: var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .session-change-btn {
+            background: none;
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            color: var(--vscode-button-foreground);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .session-change-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
         }
         
         .search-options {
-            margin-top: 8px;
-            display: flex;
-            flex-wrap: wrap;
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 8px;
         }
         
         .option-checkbox {
             display: flex;
             align-items: center;
-            gap: 4px;
-            font-size: 0.85em;
+            gap: 6px;
+            font-size: 0.9em;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .option-checkbox:hover {
+            background-color: var(--vscode-list-hoverBackground);
         }
         
         .option-checkbox input {
             margin: 0;
+            cursor: pointer;
+        }
+        
+        /* Live Search Mode specific styles */
+        .search-mode-live .search-options {
+            opacity: 1;
+        }
+        
+        /* Session Search Mode specific styles */
+        .search-mode-session .search-options {
+            opacity: 0.7;
+        }
+        
+        .search-mode-session .option-checkbox:not(.session-relevant) {
+            opacity: 0.5;
+            pointer-events: none;
         }
         
         .search-buttons {
-            margin-top: 12px;
+            margin-top: 16px;
             display: flex;
-            gap: 8px;
+            gap: 12px;
         }
         
         .btn {
-            padding: 6px 12px;
+            padding: 10px 16px;
             border: 1px solid var(--vscode-button-border);
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 0.9em;
+            font-weight: 500;
             flex: 1;
             text-align: center;
             background: none;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
         
         .btn-primary {
@@ -75,8 +200,9 @@
             border-color: var(--vscode-button-background);
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background-color: var(--vscode-button-hoverBackground);
+            transform: translateY(-1px);
         }
         
         .btn-secondary {
@@ -85,8 +211,15 @@
             border-color: var(--vscode-button-secondaryBackground);
         }
         
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background-color: var(--vscode-button-secondaryHoverBackground);
+            transform: translateY(-1px);
+        }
+        
+        /* Special styling for session search mode */
+        .search-mode-session .btn-primary {
+            background: linear-gradient(135deg, var(--vscode-button-background), var(--vscode-inputValidation-infoBackground));
+            border-color: var(--vscode-inputValidation-infoBorder);
         }
         
         .btn-tertiary {
@@ -100,6 +233,26 @@
         
         .btn-tertiary:hover {
             background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        /* Session mode visual enhancements */
+        .search-mode-session .search-input {
+            border-color: var(--vscode-inputValidation-infoBorder);
+            background: linear-gradient(135deg, var(--vscode-input-background), var(--vscode-textCodeBlock-background));
+        }
+        
+        .search-mode-session .search-input:focus {
+            border-color: var(--vscode-inputValidation-infoBorder);
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.15);
+        }
+        
+        /* Workflow info improvements */
+        .workflow-live, .workflow-session {
+            line-height: 1.5;
+        }
+        
+        .workflow-session {
+            color: var(--vscode-inputValidation-infoForeground);
         }
         
         .persisted-settings-info {
@@ -241,48 +394,89 @@
 </head>
 <body>
     <div class="search-container">
-        <div class="search-input-container">
-            <input type="text" id="searchInput" class="search-input" placeholder="Enter search query..." />
-            <div id="suggestionsDropdown" class="suggestions-dropdown"></div>
+        <!-- Search Mode Toggle -->
+        <div class="search-mode-toggle">
+            <button class="mode-tab active" id="liveModeTab" data-mode="live">
+                <span class="mode-icon">🔍</span>
+                <span>Live Search</span>
+            </button>
+            <button class="mode-tab" id="sessionModeTab" data-mode="session">
+                <span class="mode-icon">🗂️</span>
+                <span>Session Search</span>
+            </button>
         </div>
         
-        <div class="search-options">
-            <label class="option-checkbox">
-                <input type="checkbox" id="caseSensitive" />
-                <span>Case sensitive</span>
-            </label>
-            <label class="option-checkbox">
-                <input type="checkbox" id="wholeWord" />
-                <span>Whole word</span>
-            </label>
-            <label class="option-checkbox">
-                <input type="checkbox" id="useRegex" />
-                <span>Regex</span>
-            </label>
-            <label class="option-checkbox">
-                <input type="checkbox" id="searchInResults" />
-                <span>Search in stored results</span>
-            </label>
-        </div>
-        
-        <div class="search-buttons">
-            <button id="searchBtn" class="btn btn-primary">🔍 Search</button>
-            <button id="sessionsBtn" class="btn btn-secondary">📋 Sessions</button>
-            <button id="clearSettingsBtn" class="btn btn-tertiary hidden" title="Clear persisted search settings">⚙️ Clear Settings</button>
-        </div>
-        
-        <div id="persistedSettingsInfo" class="persisted-settings-info hidden">
-            <span class="settings-indicator">⚙️ Using custom search settings from results panel</span>
+        <div class="search-content search-mode-live" id="searchContent">
+            <div class="search-input-container">
+                <input type="text" id="searchInput" class="search-input" 
+                       placeholder="Enter search query..." />
+                <div id="suggestionsDropdown" class="suggestions-dropdown"></div>
+            </div>
+            
+            <!-- Session Info Bar (shown only in session mode) -->
+            <div class="session-info-bar" id="sessionInfoBar">
+                <span class="session-info-icon">🗂️</span>
+                <span class="session-info-text" id="sessionInfoText">
+                    Searching in latest session
+                </span>
+                <button class="session-change-btn" id="changeSessionBtn">Change</button>
+            </div>
+            
+            <div class="search-options">
+                <label class="option-checkbox session-relevant">
+                    <input type="checkbox" id="caseSensitive" />
+                    <span>Case sensitive</span>
+                </label>
+                <label class="option-checkbox session-relevant">
+                    <input type="checkbox" id="wholeWord" />
+                    <span>Whole word</span>
+                </label>
+                <label class="option-checkbox">
+                    <input type="checkbox" id="useRegex" />
+                    <span>Regex</span>
+                </label>
+                <!-- Hidden checkbox for internal use -->
+                <input type="checkbox" id="searchInResults" style="display: none;" />
+            </div>
+            
+            <div class="search-buttons">
+                <button id="searchBtn" class="btn btn-primary">
+                    <span id="searchBtnIcon">🔍</span>
+                    <span id="searchBtnText">Search Files</span>
+                </button>
+                <button id="sessionsBtn" class="btn btn-secondary">
+                    <span>📋</span>
+                    <span>Manage Sessions</span>
+                </button>
+                <button id="clearSettingsBtn" class="btn btn-tertiary hidden" title="Clear persisted search settings">
+                    <span>⚙️</span>
+                    <span>Clear Settings</span>
+                </button>
+            </div>
+            
+            <div id="persistedSettingsInfo" class="persisted-settings-info hidden">
+                <span class="settings-indicator">⚙️ Using custom search settings from results panel</span>
+            </div>
         </div>
     </div>
     
     <div id="status" class="status hidden"></div>
     
     <div class="results-info">
-        <strong>Smart Search Workflow:</strong><br>
-        • Search uses <em>ripgrep</em> and stores results in Solr<br>
-        • Check "Search in stored results" to search within <span id="sessionInfo">latest session</span><br>
-        • Results appear in the main editor panel →
+        <div id="workflowInfo">
+            <div class="workflow-live">
+                <strong>Live Search Mode:</strong><br>
+                • Searches your workspace files using <em>ripgrep</em><br>
+                • Results are automatically stored in Solr for future reference<br>
+                • Switch to <strong>Session Search</strong> to search within stored results
+            </div>
+            <div class="workflow-session" style="display: none;">
+                <strong>Session Search Mode:</strong><br>
+                • Searches within previously stored results from <span id="sessionInfo">latest session</span><br>
+                • Much faster than file search - instant results<br>
+                • Perfect for refining and exploring previous search results
+            </div>
+        </div>
     </div>
     
     <div class="divider"></div>
@@ -308,6 +502,92 @@
         const useRegex = document.getElementById('useRegex');
         const searchInResults = document.getElementById('searchInResults');
         const status = document.getElementById('status');
+        const clearSettingsBtn = document.getElementById('clearSettingsBtn');
+        
+        // Mode switching elements
+        const liveModeTab = document.getElementById('liveModeTab');
+        const sessionModeTab = document.getElementById('sessionModeTab');
+        const searchContent = document.getElementById('searchContent');
+        const sessionInfoBar = document.getElementById('sessionInfoBar');
+        const searchBtnIcon = document.getElementById('searchBtnIcon');
+        const searchBtnText = document.getElementById('searchBtnText');
+        const changeSessionBtn = document.getElementById('changeSessionBtn');
+        const workflowInfo = document.getElementById('workflowInfo');
+        
+        // Check for required elements
+        if (!searchInput || !searchBtn || !sessionsBtn) {
+            throw new Error('Required HTML elements are missing');
+        }
+        
+        let currentMode = 'live'; // 'live' or 'session'
+        
+        // Mode switching functionality
+        function switchToMode(mode) {
+            currentMode = mode;
+            
+            // Update tab states
+            if (liveModeTab && sessionModeTab) {
+                liveModeTab.classList.toggle('active', mode === 'live');
+                sessionModeTab.classList.toggle('active', mode === 'session');
+            }
+            
+            // Update search content styling
+            if (searchContent) {
+                searchContent.className = `search-content search-mode-${mode}`;
+            }
+            
+            // Update session info bar visibility
+            if (sessionInfoBar) {
+                sessionInfoBar.classList.toggle('active', mode === 'session');
+            }
+            
+            // Update search button
+            if (searchBtnIcon && searchBtnText && searchInResults) {
+                if (mode === 'session') {
+                    searchBtnIcon.textContent = '🗂️';
+                    searchBtnText.textContent = 'Search Session';
+                    searchInResults.checked = true;
+                } else {
+                    searchBtnIcon.textContent = '🔍';
+                    searchBtnText.textContent = 'Search Files';
+                    searchInResults.checked = false;
+                }
+            }
+            
+            // Update workflow info
+            if (workflowInfo) {
+                const workflowLive = workflowInfo.querySelector('.workflow-live');
+                const workflowSession = workflowInfo.querySelector('.workflow-session');
+                if (workflowLive && workflowSession) {
+                    workflowLive.style.display = mode === 'live' ? 'block' : 'none';
+                    workflowSession.style.display = mode === 'session' ? 'block' : 'none';
+                }
+            }
+            
+            // Update placeholder text
+            if (searchInput) {
+                if (mode === 'session') {
+                    searchInput.placeholder = 'Search within stored results...';
+                } else {
+                    searchInput.placeholder = 'Enter search query...';
+                }
+            }
+        }
+        
+        // Event listeners for mode tabs with safety checks
+        if (liveModeTab) {
+            liveModeTab.addEventListener('click', () => switchToMode('live'));
+        }
+        if (sessionModeTab) {
+            sessionModeTab.addEventListener('click', () => switchToMode('session'));
+        }
+        
+        // Change session button
+        if (changeSessionBtn) {
+            changeSessionBtn.addEventListener('click', () => {
+                loadSessions();
+            });
+        }
         
         // Add event delegation for history items (both click and dblclick)
         const historyList = document.getElementById('historyList');
@@ -340,8 +620,10 @@
             }
         }
         
-        historyList.addEventListener('click', handleHistoryItemClick);
-        historyList.addEventListener('dblclick', handleHistoryItemClick);
+        if (historyList) {
+            historyList.addEventListener('click', handleHistoryItemClick);
+            historyList.addEventListener('dblclick', handleHistoryItemClick);
+        }
         
         // Restore state
         const state = vscode.getState() || {};
@@ -383,7 +665,7 @@
                 caseSensitive: caseSensitive.checked,
                 wholeWord: wholeWord.checked,
                 useRegex: useRegex.checked,
-                searchInResults: searchInResults.checked
+                searchInResults: currentMode === 'session' // Always use session mode state
             };
             
             // Add to history
@@ -477,13 +759,15 @@
         searchBtn.addEventListener('click', performSearch);
         sessionsBtn.addEventListener('click', loadSessions);
         
-        const clearSettingsBtn = document.getElementById('clearSettingsBtn');
-        clearSettingsBtn.addEventListener('click', () => {
-            vscode.postMessage({
-                type: 'clearPersistedSettings'
+        // Add event listeners with safety checks
+        if (clearSettingsBtn) {
+            clearSettingsBtn.addEventListener('click', () => {
+                vscode.postMessage({
+                    type: 'clearPersistedSettings'
+                });
+                hidePersistedSettingsIndicator();
             });
-            hidePersistedSettingsIndicator();
-        });
+        }
         
         searchInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -602,13 +886,23 @@
         }
         
         function showPersistedSettingsIndicator() {
-            document.getElementById('persistedSettingsInfo').classList.remove('hidden');
-            document.getElementById('clearSettingsBtn').classList.remove('hidden');
+            const persistedSettingsInfo = document.getElementById('persistedSettingsInfo');
+            if (persistedSettingsInfo) {
+                persistedSettingsInfo.classList.remove('hidden');
+            }
+            if (clearSettingsBtn) {
+                clearSettingsBtn.classList.remove('hidden');
+            }
         }
         
         function hidePersistedSettingsIndicator() {
-            document.getElementById('persistedSettingsInfo').classList.add('hidden');
-            document.getElementById('clearSettingsBtn').classList.add('hidden');
+            const persistedSettingsInfo = document.getElementById('persistedSettingsInfo');
+            if (persistedSettingsInfo) {
+                persistedSettingsInfo.classList.add('hidden');
+            }
+            if (clearSettingsBtn) {
+                clearSettingsBtn.classList.add('hidden');
+            }
         }
         
         // Check for persisted settings on load
@@ -641,9 +935,20 @@
                     break;
                     
                 case 'sessionSelected':
+                    const sessionInfoText = document.getElementById('sessionInfoText');
                     const sessionInfo = document.getElementById('sessionInfo');
-                    sessionInfo.textContent = `session ${message.sessionId.substring(0, 8)}...`;
-                    showStatus('Session selected for "Search in stored results"', 'success');
+                    const shortId = message.sessionId.substring(0, 8);
+                    
+                    if (sessionInfoText) {
+                        sessionInfoText.textContent = `Searching in session ${shortId}...`;
+                    }
+                    if (sessionInfo) {
+                        sessionInfo.textContent = `session ${shortId}...`;
+                    }
+                    
+                    // Auto-switch to session mode when a session is selected
+                    switchToMode('session');
+                    showStatus('Session selected for search', 'success');
                     setTimeout(hideStatus, 2000);
                     break;
                     
@@ -653,7 +958,22 @@
                     
                 case 'newSessionCreated':
                     const sessionInfoEl = document.getElementById('sessionInfo');
-                    sessionInfoEl.textContent = `latest session (${message.resultCount} results)`;
+                    const sessionInfoTextEl = document.getElementById('sessionInfoText');
+                    
+                    if (sessionInfoEl) {
+                        sessionInfoEl.textContent = `latest session (${message.resultCount} results)`;
+                    }
+                    if (sessionInfoTextEl) {
+                        sessionInfoTextEl.textContent = `Searching in latest session (${message.resultCount} results)`;
+                    }
+                    
+                    // Show a visual indicator that a new session is available
+                    if (currentMode === 'live') {
+                        sessionModeTab.style.background = 'linear-gradient(135deg, var(--vscode-button-secondaryBackground), var(--vscode-inputValidation-infoBackground))';
+                        setTimeout(() => {
+                            sessionModeTab.style.background = '';
+                        }, 3000);
+                    }
                     break;
                     
                 case 'sessionSearchInfo':
