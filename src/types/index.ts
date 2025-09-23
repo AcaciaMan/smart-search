@@ -53,6 +53,7 @@ export interface StoredSearchResult {
   case_sensitive: boolean;
   whole_word: boolean;
   relevance_score: number;
+  score?: number; // Solr's native search score (0.0-1.0 range)
   match_count_in_file: number;
   ai_summary?: string;
   ai_tags?: string[];

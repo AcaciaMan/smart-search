@@ -539,7 +539,7 @@
         const filePath = escapeHtml(result.file_path || '');
         const lineNumber = result.line_number || 0;
         const columnNumber = result.column_number || 0;
-        const relevanceScore = (result.relevance_score || 0).toFixed(2);
+        const relevanceScore = (result.score !== undefined ? result.score * 100 : result.relevance_score || 0).toFixed(2);
         const sessionId = escapeHtml(result.search_session_id || '');
         const originalQuery = escapeHtml(result.original_query || '');
         const fileSize = result.file_size ? formatFileSize(result.file_size) : 'N/A';

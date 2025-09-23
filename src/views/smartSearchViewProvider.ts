@@ -177,7 +177,10 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         
         // Apply additional filtering if settings exist
         if (persistedSettings.minScore > 0) {
-          storedResults = storedResults.filter(r => r.relevance_score >= persistedSettings.minScore);
+          storedResults = storedResults.filter(r => {
+            const scoreToUse = r.score !== undefined ? r.score * 100 : r.relevance_score;
+            return scoreToUse >= persistedSettings.minScore;
+          });
         }
         
         if (persistedSettings.fileTypes) {

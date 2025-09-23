@@ -19,7 +19,7 @@ export class SolrQueryBuilder {
       'hl.simple.post': '</mark>',
       'hl.fragsize': 300,
       'hl.snippets': 1,
-      sort: 'relevance_score desc, search_timestamp desc',
+      sort: 'score desc, search_timestamp desc',
       fl: '*,score'
     };
 

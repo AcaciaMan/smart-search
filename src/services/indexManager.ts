@@ -184,7 +184,7 @@ export class IndexManager {
           column: doc.column_number,
           content: originalContent,
           context: context,
-          score: doc.relevance_score / 100, // Convert back to decimal
+          score: doc.score || (doc.relevance_score / 100), // Use Solr's native score or fallback to stored relevance_score
           summary: doc.ai_summary,
           // Add the highlighted display content for the UI
           highlighted_display: highlightedDisplayContent
@@ -268,6 +268,8 @@ export class IndexManager {
           ai_tags: doc.ai_tags || [],
           // Add simplified highlighting content
           display_content: doc.display_content || '',
+          // Add Solr's native score (fallback to stored relevance_score)
+          score: doc.score || (doc.relevance_score / 100),
           // Add highlighted snippets for easy display
           snippets: highlightedDisplayContent ? [highlightedDisplayContent] : []
         };

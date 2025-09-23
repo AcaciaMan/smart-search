@@ -110,7 +110,7 @@ export class RipgrepSearcher {
 
       rg.on('close', (code) => {
         // Process all collected lines and extract context for each match
-        this.processAllLines(allLines, results);
+        this.processAllLines(allLines, results, options);
         
         if (code === 0 || code === 1) { // 0 = found, 1 = not found
           resolve(results);
@@ -129,7 +129,7 @@ export class RipgrepSearcher {
     type: 'context' | 'match';
     data: any;
     lineNumber?: number;
-  }>, results: SearchResult[]) {
+  }>, results: SearchResult[], searchOptions: SearchOptions) {
     // Find all match indices
     const matchIndices: number[] = [];
     for (let i = 0; i < allLines.length; i++) {
@@ -242,7 +242,7 @@ export class RipgrepSearcher {
         column: matchData.submatches[0]?.start || 0,
         content: matchData.lines.text, // Only the actual match line
         context: fullContext, // Full context for Solr storage with proper before/after
-        score: 1.0,
+        score: this.calculateRelevanceScore(matchData, searchOptions),
         submatches: submatches // Include submatch positions for highlighting
       };
       results.push(result);
@@ -276,5 +276,59 @@ export class RipgrepSearcher {
     };
 
     return this.search(searchOptions);
+  }
+
+  /**
+   * Calculate relevance score based on match characteristics
+   * Returns a score between 0.0 and 1.0
+   */
+  private calculateRelevanceScore(matchData: any, searchOptions: SearchOptions): number {
+    let score = 0.5; // Base score
+    
+    const matchText = matchData.lines.text.toLowerCase();
+    const searchQuery = searchOptions.query.toLowerCase();
+    
+    // Exact match gets highest score
+    if (matchText.includes(searchQuery)) {
+      score += 0.3;
+      
+      // Whole word match gets bonus
+      const wordBoundaryRegex = new RegExp(`\\b${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      if (wordBoundaryRegex.test(matchText)) {
+        score += 0.2;
+      }
+    }
+    
+    // File type relevance
+    const filePath = matchData.path.text.toLowerCase();
+    const isSourceCode = /\.(js|ts|py|java|cpp|c|h|css|html|jsx|tsx)$/i.test(filePath);
+    const isConfig = /\.(json|yml|yaml|xml|config|ini|properties)$/i.test(filePath);
+    const isDoc = /\.(md|txt|rst|doc)$/i.test(filePath);
+    
+    if (isSourceCode) {
+      score += 0.2;
+    } else if (isConfig) {
+      score += 0.1;
+    } else if (isDoc) {
+      score += 0.05;
+    }
+    
+    // Submatch count (more matches in line = higher relevance)
+    const submatchCount = matchData.submatches?.length || 1;
+    score += Math.min(submatchCount * 0.05, 0.15);
+    
+    // Position in line (earlier matches slightly more relevant)
+    const firstMatchColumn = matchData.submatches?.[0]?.start || 0;
+    if (firstMatchColumn < 20) {
+      score += 0.05;
+    }
+    
+    // Case sensitivity bonus (if user specified case sensitive)
+    if (searchOptions.caseSensitive && matchText.includes(searchOptions.query)) {
+      score += 0.1;
+    }
+    
+    // Ensure score is within bounds
+    return Math.min(Math.max(score, 0.0), 1.0);
   }
 }
