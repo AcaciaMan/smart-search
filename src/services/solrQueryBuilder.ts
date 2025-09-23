@@ -107,22 +107,51 @@ export class SolrQueryBuilder {
       // User specified custom fields - use query as-is but still sanitize individual terms
       return this.sanitizeFieldQuery(trimmedQuery);
     } else {
-      // Default behavior - search in configured default fields
-      const defaultFields = vscode.workspace.getConfiguration('smart-search').get('defaultSolrFields', 'content_all,code_all');
-      const fields = defaultFields.split(',').map(f => f.trim()).filter(f => f);
-      
+      // Default behavior - use smart field selection
+      const fields = this.getOptimalFields(trimmedQuery);
       const sanitizedQuery = this.sanitizeQuery(trimmedQuery);
       
       if (fields.length === 0) {
-        // Fallback if no fields configured
-        return `content_all:(${sanitizedQuery}) OR code_all:(${sanitizedQuery})`;
+        // Fallback with boost weighting - prioritize code_all for programming content
+        return `content_all:(${sanitizedQuery})^1.0 OR code_all:(${sanitizedQuery})^1.5`;
       } else if (fields.length === 1) {
         // Single field
         return `${fields[0]}:(${sanitizedQuery})`;
       } else {
-        // Multiple fields with OR
-        return fields.map(field => `${field}:(${sanitizedQuery})`).join(' OR ');
+        // Multiple fields with OR and smart boosting
+        const fieldQueries = fields.map(field => {
+          // Boost code_all higher for programming-specific searches
+          const boost = field === 'code_all' ? '^1.5' : field === 'content_all' ? '^1.0' : '';
+          return `${field}:(${sanitizedQuery})${boost}`;
+        });
+        return fieldQueries.join(' OR ');
       }
+    }
+  }
+
+  /**
+   * Determine optimal fields based on query characteristics
+   */
+  private getOptimalFields(query: string): string[] {
+    const config = vscode.workspace.getConfiguration('smart-search');
+    const defaultFields = config.get('defaultSolrFields', 'content_all,code_all');
+    
+    // Check if query looks like code (contains programming patterns)
+    const codePatterns = /[(){}\[\]<>;=+\-*\/\\|&^%$#@!~`]|function|class|const|let|var|if|else|for|while|return|import|export/i;
+    const hasCodePattern = codePatterns.test(query);
+    
+    // Check if query is filename-related
+    const filenamePatterns = /\.(js|ts|py|java|cpp|c|h|css|html|xml|json|yml|yaml|md|txt)$/i;
+    const isFilenameQuery = filenamePatterns.test(query);
+    
+    if (isFilenameQuery) {
+      return ['file_name', 'file_path'];
+    } else if (hasCodePattern) {
+      // Prioritize code field for programming queries
+      return ['code_all', 'content_all'];
+    } else {
+      // Standard content search
+      return defaultFields.split(',').map(f => f.trim()).filter(f => f);
     }
   }
 

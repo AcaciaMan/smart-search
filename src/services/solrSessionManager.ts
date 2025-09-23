@@ -84,7 +84,7 @@ export class SolrSessionManager {
           if (doc) {
             sessions.push({
               sessionId,
-              query: doc.original_query,
+              query: doc.original_query || 'Unknown Query',
               timestamp: doc.search_timestamp,
               resultCount
             });
@@ -183,7 +183,7 @@ export class SolrSessionManager {
           if (sessionResponse.data?.response?.docs) {
             sessionResponse.data.response.docs.forEach((doc: any) => {
               // Extract words from match_text that match the partial query
-              if (doc.match_text) {
+              if (doc.match_text && typeof doc.match_text === 'string') {
                 const words = doc.match_text.match(/\b[\w"']+/g) || []; // Include quoted phrases
                 words.forEach((word: string) => {
                   const cleanWord = word.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
@@ -206,20 +206,20 @@ export class SolrSessionManager {
               }
               
               // Prioritize file names and paths from session
-              if (doc.file_name && doc.file_name.toLowerCase().includes(partialQuery.toLowerCase())) {
+              if (doc.file_name && typeof doc.file_name === 'string' && doc.file_name.toLowerCase().includes(partialQuery.toLowerCase())) {
                 sessionSuggestions.add(doc.file_name);
               }
               
               // Include path components
-              if (doc.file_path) {
+              if (doc.file_path && typeof doc.file_path === 'string') {
                 const pathParts = doc.file_path.split(/[/\\]/).filter((part: string) => 
-                  part.toLowerCase().includes(partialQuery.toLowerCase()) && part.length > partialQuery.length
+                  part && typeof part === 'string' && part.toLowerCase().includes(partialQuery.toLowerCase()) && part.length > partialQuery.length
                 );
                 pathParts.forEach((part: string) => sessionSuggestions.add(part));
               }
 
               // Include the original query if it matches
-              if (doc.original_query && doc.original_query.toLowerCase().includes(partialQuery.toLowerCase())) {
+              if (doc.original_query && typeof doc.original_query === 'string' && doc.original_query.toLowerCase().includes(partialQuery.toLowerCase())) {
                 sessionSuggestions.add(doc.original_query);
               }
             });
@@ -288,7 +288,7 @@ export class SolrSessionManager {
             
             if (fallbackResponse.data?.response?.docs) {
               fallbackResponse.data.response.docs.forEach((doc: any) => {
-                if (doc.match_text && !sessionSuggestions.has(doc.match_text)) {
+                if (doc.match_text && typeof doc.match_text === 'string' && !sessionSuggestions.has(doc.match_text)) {
                   globalSuggestions.add(doc.match_text);
                 }
               });
