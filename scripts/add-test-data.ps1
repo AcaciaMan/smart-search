@@ -69,7 +69,7 @@ $testData = @(
         context_after = @(
             "    const searchOptions: SearchOptions = {",
             "      query,",
-            "      maxResults: options?.maxResults || 100"
+            "      maxFiles: options?.maxFiles || 100"
         )
         context_lines_before = 3
         context_lines_after = 3
@@ -83,8 +83,8 @@ $testData = @(
         ai_summary = "Main search method in SmartSearchProvider class"
         ai_tags = @("typescript", "async", "search", "provider")
         # Combined fields for search
-        content_all = "async search query string options SearchOptions Promise SearchResult class SmartSearchProvider ripgrepSearcher searchOptions maxResults"
-        code_all = "async search(query: string, options?: SearchOptions): Promise<SearchResult[]> { export class SmartSearchProvider private ripgrepSearcher RipgrepSearcher searchOptions query maxResults"
+        content_all = "async search query string options SearchOptions Promise SearchResult class SmartSearchProvider ripgrepSearcher searchOptions maxFiles"
+        code_all = "async search(query: string, options?: SearchOptions): Promise<SearchResult[]> { export class SmartSearchProvider private ripgrepSearcher RipgrepSearcher searchOptions query maxFiles"
         content_highlight = "async search(query: string, options?: SearchOptions): Promise<SearchResult[]> { Main search method in SmartSearchProvider class"
         code_highlight = "async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {"
     }

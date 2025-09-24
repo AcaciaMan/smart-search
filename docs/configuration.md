@@ -45,4 +45,4 @@ sudo dnf install ripgrep
 
 - `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
-- `smart-search.maxResults`: Maximum search results (default: 100)
+- `smart-search.maxFiles`: Maximum files to return results from (default: 100)

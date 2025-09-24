@@ -16,7 +16,8 @@ export interface SearchResult {
 
 export interface SearchOptions {
   query: string;
-  maxResults?: number;
+  maxFiles?: number; // Maximum number of files to return results from (ripgrep)
+  maxResults?: number; // Maximum number of results for Solr API compatibility
   includePatterns?: string[];
   excludePatterns?: string[];
   caseSensitive?: boolean;

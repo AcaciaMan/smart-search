@@ -77,17 +77,8 @@ export class RipgrepSearcher {
     // Apply file-level scoring bonuses based on match frequency per file
     this.applyFileFrequencyBonus(results);
     
-    // Sort results by relevance score (highest first) before applying limit
-    // This ensures that when we exceed maxResults, we keep the most relevant results
-    results.sort((a, b) => b.score - a.score);
-    
-    const maxResults = options.maxResults || 100;
-    const limitedResults = results.slice(0, maxResults);
-    
-    if (enableDebugLogging && results.length > maxResults) {
-      console.log(`Sorted and limited results: ${limitedResults.length}/${results.length} (kept highest scoring)`);
-      console.log(`Score range: ${limitedResults[0]?.score.toFixed(3)} - ${limitedResults[limitedResults.length - 1]?.score.toFixed(3)}`);
-    }
+    // Group results by file and apply file-based limiting
+    const limitedResults = this.limitResultsByTopFiles(results, options, enableDebugLogging);
     
     return limitedResults;
   }
@@ -345,10 +336,99 @@ export class RipgrepSearcher {
       query: symbolPatterns.join('|'),
       useRegex: true,
       caseSensitive: false,
-      maxResults: 50
+      maxFiles: 50
     };
 
     return this.search(searchOptions);
+  }
+
+  /**
+   * Limit results by selecting the top files (not individual matches)
+   * This ensures we get complete match sets from the most relevant files
+   */
+  private limitResultsByTopFiles(results: SearchResult[], options: SearchOptions, enableDebugLogging: boolean): SearchResult[] {
+    
+    // Group results by file
+    const fileGroups = new Map<string, SearchResult[]>();
+    results.forEach(result => {
+      if (!fileGroups.has(result.file)) {
+        fileGroups.set(result.file, []);
+      }
+      fileGroups.get(result.file)!.push(result);
+    });
+
+    // Calculate file scores and sort files by relevance
+    const fileScores = Array.from(fileGroups.entries()).map(([file, matches]) => {
+      // Calculate total score for the file
+      const totalScore = matches.reduce((sum, match) => sum + (match.score || 0), 0);
+      const avgScore = totalScore / matches.length;
+      
+      return {
+        file,
+        matches,
+        matchCount: matches.length,
+        totalScore,
+        avgScore,
+        // Combined relevance: prioritize files with many high-quality matches
+        combinedScore: totalScore + (matches.length * 0.1) // Small bonus for match quantity
+      };
+    }).sort((a, b) => {
+      // Primary sort: Combined score (descending)
+      const scoreDiff = b.combinedScore - a.combinedScore;
+      if (scoreDiff !== 0) return scoreDiff;
+      
+      // Secondary sort: Match count (descending)
+      const countDiff = b.matchCount - a.matchCount;
+      if (countDiff !== 0) return countDiff;
+      
+      // Tertiary sort: File path (ascending) for consistency
+      return a.file.localeCompare(b.file);
+    });
+
+    // Get maxFiles setting
+    const config = vscode.workspace.getConfiguration('smart-search');
+    const maxFiles = config.get('maxFiles', 100);
+    
+    // Determine how many files to include based on maxFiles
+    let selectedFiles: typeof fileScores = [];
+    let totalMatches = 0;
+    
+    // Strategy: Include complete files until we hit the file limit
+    // Always include at least the top file, even if maxFiles is very low
+    for (const fileScore of fileScores) {
+      const wouldExceedFiles = maxFiles > 0 && selectedFiles.length >= maxFiles;
+      const isFirstFile = selectedFiles.length === 0;
+      
+      // Stop if we hit the file limit (unless it's the first file)
+      if (wouldExceedFiles && !isFirstFile) {
+        break;
+      }
+      
+      // Include the file
+      selectedFiles.push(fileScore);
+      totalMatches += fileScore.matchCount;
+    }
+
+    // Collect all matches from selected files and sort by score within each file
+    const finalResults: SearchResult[] = [];
+    selectedFiles.forEach(fileScore => {
+      // Sort matches within file by score (highest first)
+      const sortedMatches = fileScore.matches.sort((a, b) => (b.score || 0) - (a.score || 0));
+      finalResults.push(...sortedMatches);
+    });
+
+    if (enableDebugLogging) {
+      console.log(`File-based limiting: Selected ${selectedFiles.length} files with ${finalResults.length} total matches`);
+      console.log(`Top files:`, selectedFiles.slice(0, 5).map(f => 
+        `${f.file} (${f.matchCount} matches, score: ${f.totalScore.toFixed(2)})`
+      ));
+      
+      if (fileScores.length > selectedFiles.length) {
+        console.log(`Excluded ${fileScores.length - selectedFiles.length} files with lower scores`);
+      }
+    }
+
+    return finalResults;
   }
 
   /**

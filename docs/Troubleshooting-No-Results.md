@@ -120,7 +120,7 @@ console.log('Latest session ID:', latestSessionId);
 ```json
 {
   "smart-search.solrUrl": "http://localhost:8983/solr",
-  "smart-search.maxResults": 100
+  "smart-search.maxFiles": 100
 }
 ```
 

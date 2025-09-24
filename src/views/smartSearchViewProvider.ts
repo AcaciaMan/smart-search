@@ -122,7 +122,7 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         // Merge persisted settings with current options
         effectiveSearchOptions = {
           query,
-          maxResults: persistedSettings?.maxResults || options.maxResults || 100,
+          maxFiles: persistedSettings?.maxFiles || options.maxFiles || 100,
           contextLinesBefore: persistedSettings?.contextLinesBefore || options.contextLinesBefore || 30,
           contextLinesAfter: persistedSettings?.contextLinesAfter || options.contextLinesAfter || 30,
           includePatterns: persistedSettings?.includePatterns || options.includePatterns,
@@ -168,9 +168,9 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         // Get persisted settings and merge with current options
         const persistedSettings = SolrResultsPanel.getPersistedSettings();
         const mergedOptions = {
-          query,  // THIS WAS MISSING! Solr needs the query to search for
+          query,  // Solr needs the query to search for
           ...options,
-          maxResults: persistedSettings.maxResults || options.maxResults,
+          maxResults: persistedSettings.maxResults || 1000, // Large default for Solr
         };
         
         let storedResults = await indexManager.searchStoredResultsDetailed(mergedOptions, this.latestSessionId);

@@ -12,7 +12,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
   private currentQuery: string = '';
   private currentSettings: SearchOptions = {
     query: '',
-    maxResults: 100,
+    maxFiles: 100,
     contextLinesBefore: 30,
     contextLinesAfter: 30
   };
@@ -76,7 +76,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       // Convert webview settings to SearchOptions, preserving original search options
       const searchOptions: SearchOptions = {
         query: query,
-        maxResults: settings.maxResults || 100,
+        maxFiles: settings.maxFiles || 100,
         contextLinesBefore: settings.contextLinesBefore || 30,
         contextLinesAfter: settings.contextLinesAfter || 30,
         includePatterns: settings.includePatterns && settings.includePatterns.length > 0 ? settings.includePatterns : undefined,
@@ -92,7 +92,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       
       // Persist only the fine-tuning settings for future searches (excluding the query and main search options)
       RipgrepResultsPanel.persistedSettings = {
-        maxResults: searchOptions.maxResults,
+        maxFiles: searchOptions.maxFiles,
         contextLinesBefore: searchOptions.contextLinesBefore,
         contextLinesAfter: searchOptions.contextLinesAfter,
         includePatterns: searchOptions.includePatterns,
@@ -134,7 +134,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       this.currentSettings = settings;
       // Persist only the fine-tuning settings for future searches (not the main search options)
       RipgrepResultsPanel.persistedSettings = {
-        maxResults: settings.maxResults,
+        maxFiles: settings.maxFiles,
         contextLinesBefore: settings.contextLinesBefore || settings.contextLines, // Backward compatibility
         contextLinesAfter: settings.contextLinesAfter || settings.contextLines, // Backward compatibility
         includePatterns: settings.includePatterns,

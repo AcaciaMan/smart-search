@@ -14,7 +14,7 @@ export class SmartSearchProvider {
   async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
     const searchOptions: SearchOptions = {
       query,
-      maxResults: options?.maxResults || vscode.workspace.getConfiguration('smart-search').get('maxResults', 100),
+      maxFiles: options?.maxFiles || vscode.workspace.getConfiguration('smart-search').get('maxFiles', 100),
       ...options
     };
 

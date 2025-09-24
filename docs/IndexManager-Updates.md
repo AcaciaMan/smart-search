@@ -77,7 +77,7 @@ const sessionId = await indexManager.storeSearchResults(results, query, options)
 ```typescript
 const storedResults = await indexManager.searchStoredResults({
   query: "error handling",
-  maxResults: 50
+  maxFiles: 50
 });
 ```
 

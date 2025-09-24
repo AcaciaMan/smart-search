@@ -64,6 +64,18 @@
       font-family: var(--vscode-editor-font-family);
       font-size: var(--vscode-editor-font-size);
       line-height: 1.4;
+      padding: 2px 4px;
+      border-radius: 2px;
+      transition: background-color 0.1s ease;
+    }
+    .context-line:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+    .match-separator {
+      height: 1px;
+      background-color: var(--vscode-panel-border);
+      margin: 8px 0;
+      opacity: 0.5;
     }
     .context-line-number {
       color: var(--vscode-editorLineNumber-foreground);
@@ -72,6 +84,18 @@
       text-align: right;
       margin-right: 10px;
       font-size: 0.9em;
+    }
+    .match-score {
+      color: var(--vscode-descriptionForeground);
+      background-color: var(--vscode-badge-background);
+      font-size: 0.8em;
+      padding: 1px 4px;
+      border-radius: 8px;
+      margin-right: 8px;
+      min-width: 28px;
+      display: inline-block;
+      text-align: center;
+      font-weight: 500;
     }
     .summary {
       background-color: var(--vscode-textBlockQuote-background);
@@ -232,8 +256,8 @@
                  placeholder="e.g., node_modules,*.log" title="Comma-separated glob patterns">
         </div>
         <div class="settings-row">
-          <label class="settings-label">Max Results:</label>
-          <input type="number" id="max-results" class="settings-input settings-number" value="100" min="1" max="1000">
+          <label class="settings-label">Max Files:</label>
+          <input type="number" id="max-files" class="settings-input settings-number" value="100" min="1" max="1000">
         </div>
         <div class="settings-row">
           <button class="settings-button" onclick="applySettings()" id="apply-button">Apply Settings</button>
@@ -253,7 +277,7 @@
       contextLinesAfter: 30,
       includePatterns: [],
       excludePatterns: [],
-      maxResults: 100
+      maxFiles: 100
     };
     
     // Add event delegation for result headers
@@ -296,14 +320,14 @@
       const contextLinesAfter = parseInt(document.getElementById('context-lines-after').value) || 30;
       const includePatterns = parsePatterns(document.getElementById('include-patterns').value);
       const excludePatterns = parsePatterns(document.getElementById('exclude-patterns').value);
-      const maxResults = parseInt(document.getElementById('max-results').value) || 100;
+      const maxFiles = parseInt(document.getElementById('max-files').value) || 100;
 
       currentSettings = {
         contextLinesBefore,
         contextLinesAfter,
         includePatterns,
         excludePatterns,
-        maxResults
+        maxFiles
       };
 
       // Disable button while searching
@@ -328,7 +352,7 @@
       document.getElementById('context-lines-after').value = settings.contextLinesAfter || 30;
       document.getElementById('include-patterns').value = (settings.includePatterns || []).join(', ');
       document.getElementById('exclude-patterns').value = (settings.excludePatterns || []).join(', ');
-      document.getElementById('max-results').value = settings.maxResults || 100;
+      document.getElementById('max-files').value = settings.maxFiles || 100;
     }
 
     function enableApplyButton() {
@@ -343,6 +367,63 @@
       return div.innerHTML;
     }
 
+    function getUniqueFileCount(results) {
+      const uniqueFiles = new Set(results.map(result => result.file));
+      return uniqueFiles.size;
+    }
+
+    function calculateFileScore(matches) {
+      const totalScore = matches.reduce((sum, match) => sum + (match.score || 0), 0);
+      return totalScore.toFixed(2);
+    }
+
+    function groupResultsByFile(results) {
+      const fileGroups = new Map();
+      
+      // Group results by file path
+      results.forEach(result => {
+        if (!fileGroups.has(result.file)) {
+          fileGroups.set(result.file, {
+            file: result.file,
+            matches: [],
+            summary: null
+          });
+        }
+        
+        fileGroups.get(result.file).matches.push(result);
+        
+        // Use the first available summary for the file
+        if (result.summary && !fileGroups.get(result.file).summary) {
+          fileGroups.get(result.file).summary = result.summary;
+        }
+      });
+      
+      // Sort matches within each file by line number
+      fileGroups.forEach(fileGroup => {
+        fileGroup.matches.sort((a, b) => (a.line || 0) - (b.line || 0));
+      });
+      
+      // Convert to array and sort by relevance criteria
+      return Array.from(fileGroups.values()).sort((a, b) => {
+        // Primary sort: Number of matches (descending)
+        const matchCountDiff = b.matches.length - a.matches.length;
+        if (matchCountDiff !== 0) {
+          return matchCountDiff;
+        }
+        
+        // Secondary sort: Sum of relevance scores (descending)
+        const aScoreSum = a.matches.reduce((sum, match) => sum + (match.score || 0), 0);
+        const bScoreSum = b.matches.reduce((sum, match) => sum + (match.score || 0), 0);
+        const scoreDiff = bScoreSum - aScoreSum;
+        if (scoreDiff !== 0) {
+          return scoreDiff;
+        }
+        
+        // Tertiary sort: File path (ascending) for consistent ordering
+        return a.file.localeCompare(b.file);
+      });
+    }
+
     function renderResults(data) {
       const { results, query, settings } = data;
       
@@ -355,7 +436,7 @@
       
       document.getElementById('search-query').textContent = query;
       document.getElementById('results-count').textContent = 
-        `Found ${results.length} result${results.length !== 1 ? 's' : ''}`;
+        `Found ${results.length} result${results.length !== 1 ? 's' : ''} in ${getUniqueFileCount(results)} file${getUniqueFileCount(results) !== 1 ? 's' : ''}`;
 
       // Re-enable apply button
       enableApplyButton();
@@ -368,15 +449,20 @@
         return;
       }
 
-      container.innerHTML = results.map(result => `
+      // Group results by file
+      const groupedResults = groupResultsByFile(results);
+      
+      container.innerHTML = groupedResults.map(fileGroup => `
         <div class="result-item">
-          <div class="result-header" data-file-path="${escapeHtml(result.file)}" data-line-number="${result.line || 1}" data-column-number="${result.column || 1}" data-action="open-file">>
-            <span class="file-path">${escapeHtml(result.file)}</span>
-            <span class="line-info">Line ${result.line}, Column ${result.column}</span>
+          <div class="result-header" data-file-path="${escapeHtml(fileGroup.file)}" data-line-number="${fileGroup.matches[0].line || 1}" data-column-number="${fileGroup.matches[0].column || 1}" data-action="open-file">
+            <span class="file-path">${escapeHtml(fileGroup.file)}</span>
+            <span class="line-info">${fileGroup.matches.length} match${fileGroup.matches.length !== 1 ? 'es' : ''} • Score: ${calculateFileScore(fileGroup.matches)}</span>
           </div>
           <div class="result-content">
-            ${getResultContent(result)}
-            ${result.summary ? `<div class="summary">${escapeHtml(result.summary)}</div>` : ''}
+            ${fileGroup.matches.map((result, index) => 
+              getResultContent(result) + (index < fileGroup.matches.length - 1 ? '<div class="match-separator"></div>' : '')
+            ).join('')}
+            ${fileGroup.summary ? `<div class="summary">${escapeHtml(fileGroup.summary)}</div>` : ''}
           </div>
         </div>
       `).join('');
@@ -434,8 +520,9 @@
       }
       
       return `
-        <div class="context-line">
+        <div class="context-line" data-file-path="${escapeHtml(result.file)}" data-line-number="${result.line || 1}" data-column-number="${result.column || 1}" data-action="open-file" style="cursor: pointer;" title="Click to jump to line ${result.line} • Score: ${(result.score || 0).toFixed(3)}">
           <span class="context-line-number">${result.line}</span>
+          <span class="match-score" title="Relevance score">${(result.score || 0).toFixed(2)}</span>
           ${displayLine}
         </div>
       `;

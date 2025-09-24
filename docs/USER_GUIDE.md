@@ -95,7 +95,7 @@ Access via VS Code Settings (`Ctrl+,`):
 ```json
 {
   "smart-search.defaultSolrFields": "content_all,code_all",
-  "smart-search.maxResults": 100,
+  "smart-search.maxFiles": 100,
   "smart-search.solrUrl": "http://localhost:8983/solr"
 }
 ```

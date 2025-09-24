@@ -11,7 +11,7 @@ export class SolrQueryBuilder {
   buildSearchParams(options: SearchOptions, sessionId?: string): Record<string, any> {
     const queryParams: any = {
       q: this.buildSolrQuery(options.query),
-      rows: options.maxResults || 100,
+      rows: 1000, // Large default limit - filtering happens at file level
       wt: 'json',
       hl: 'true',
       'hl.fl': 'display_content',

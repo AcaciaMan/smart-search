@@ -209,7 +209,7 @@ The extension can be configured through VS Code settings:
 
 - `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
-- `smart-search.maxResults`: Maximum number of search results (default: 100)
+- `smart-search.maxFiles`: Maximum number of files to return results from (default: 100)
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
 - `smart-search.maxParallelFolders`: Maximum folders for parallel search (default: 5)
 - `smart-search.enableDebugLogging`: Enable debug logging for searches (default: false)
