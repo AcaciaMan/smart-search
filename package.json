@@ -2,7 +2,7 @@
   "name": "smart-search-ripsolr",
   "displayName": "Smart Search with Ripgrep and Solr",
   "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, AI summaries, and advanced field-specific query syntax",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "manacacia",
   "repository": {
     "type": "git",
@@ -92,6 +92,16 @@
           "type": "string",
           "default": "content_all,code_all",
           "description": "Default Solr fields to search in (comma-separated). Users can still specify custom field queries like 'file_name:*.js'"
+        },
+        "smart-search.maxParallelFolders": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of workspace folders to search in parallel (1-10). Higher numbers may improve performance but use more system resources."
+        },
+        "smart-search.enableDebugLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging for multi-folder search operations"
         }
       }
     }

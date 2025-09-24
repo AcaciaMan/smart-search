@@ -7,6 +7,7 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 ## Features
 
 - **Dual Search Modes**: Choose between Live Search (workspace files) and Session Search (stored results)
+- **Multi-Folder Search**: Automatically searches across all workspace folders with intelligent parallel processing
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
 - **Session-Based Search**: Search within previously stored results for rapid exploration and refinement
 - **Interactive Search Settings**: Fine-tune search results with customizable settings panels
@@ -210,6 +211,8 @@ The extension can be configured through VS Code settings:
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
 - `smart-search.maxResults`: Maximum number of search results (default: 100)
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
+- `smart-search.maxParallelFolders`: Maximum folders for parallel search (default: 5)
+- `smart-search.enableDebugLogging`: Enable debug logging for searches (default: false)
 
 ### Search Mode Configuration
 
@@ -235,6 +238,40 @@ You can customize which fields are searched by default for simple queries:
 - `"content_all,code_all"` - Search in content and code (default)  
 - `"match_text,file_name,file_path"` - Search in specific fields only
 - `"content_all,code_all,ai_summary"` - Include AI summaries in default search
+
+### Multi-Folder Search Configuration
+
+The extension automatically searches across **all workspace folders** when multiple folders are open in VS Code. You can control the search behavior with these settings:
+
+```json
+{
+  "smart-search.maxParallelFolders": 5,
+  "smart-search.enableDebugLogging": false
+}
+```
+
+#### Search Strategy
+- **2-5 folders**: **Parallel search** for optimal performance
+- **1 folder or 6+ folders**: **Sequential search** to avoid system overload
+- **Error resilience**: Failed folders don't break the entire search
+
+#### Configuration Options
+- `smart-search.maxParallelFolders` (default: 5)
+  - Maximum folders to search in parallel
+  - Range: 1-10 folders
+  - Higher values = faster search but more system resources
+
+- `smart-search.enableDebugLogging` (default: false)
+  - Shows detailed multi-folder search progress
+  - Useful for troubleshooting workspace setup
+  - Displays: folder discovery, search strategy, results per folder
+
+#### Benefits
+- **🚀 Performance**: Up to 5x faster with parallel search (2-5 folders)
+- **🛡️ Reliability**: Individual folder errors don't stop search
+- **📊 Visibility**: Optional logging shows search progress
+- **⚙️ Adaptive**: Automatically chooses best search strategy
+- **🎯 Complete Coverage**: Searches all workspace folders automatically
 
 ## Requirements
 

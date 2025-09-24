@@ -9,13 +9,70 @@ export class RipgrepSearcher {
       throw new Error('No workspace folder found');
     }
 
-    const results: SearchResult[] = [];
-    
-    for (const folder of workspaceFolders) {
-      const folderResults = await this.searchInFolder(folder.uri.fsPath, options);
-      results.push(...folderResults);
+    // Log workspace folders being searched (can be disabled in production)
+    const enableDebugLogging = vscode.workspace.getConfiguration('smart-search').get('enableDebugLogging', false);
+    if (enableDebugLogging) {
+      console.log(`Searching in ${workspaceFolders.length} workspace folder(s):`);
+      workspaceFolders.forEach((folder, index) => {
+        console.log(`  ${index + 1}. ${folder.name} (${folder.uri.fsPath})`);
+      });
     }
 
+    const results: SearchResult[] = [];
+    
+    // Decide whether to search in parallel or sequentially
+    const config = vscode.workspace.getConfiguration('smart-search');
+    const maxParallelFolders = config.get('maxParallelFolders', 5);
+    const useParallelSearch = workspaceFolders.length > 1 && workspaceFolders.length <= maxParallelFolders;
+    
+    if (useParallelSearch) {
+      // Parallel search for better performance with multiple folders
+      if (enableDebugLogging) {
+        console.log('Using parallel search for multiple folders...');
+      }
+      const searchPromises = workspaceFolders.map(async (folder) => {
+        try {
+          if (enableDebugLogging) {
+            console.log(`Starting search in folder: ${folder.name}...`);
+          }
+          const folderResults = await this.searchInFolder(folder.uri.fsPath, options);
+          if (enableDebugLogging) {
+            console.log(`Found ${folderResults.length} results in ${folder.name}`);
+          }
+          return folderResults;
+        } catch (error) {
+          console.warn(`Error searching in folder ${folder.name}:`, error);
+          return []; // Return empty array on error
+        }
+      });
+      
+      const allFolderResults = await Promise.all(searchPromises);
+      allFolderResults.forEach(folderResults => results.push(...folderResults));
+    } else {
+      // Sequential search for single folder or many folders (to avoid overwhelming system)
+      if (enableDebugLogging) {
+        console.log('Using sequential search...');
+      }
+      for (const folder of workspaceFolders) {
+        try {
+          if (enableDebugLogging) {
+            console.log(`Searching folder: ${folder.name}...`);
+          }
+          const folderResults = await this.searchInFolder(folder.uri.fsPath, options);
+          if (enableDebugLogging) {
+            console.log(`Found ${folderResults.length} results in ${folder.name}`);
+          }
+          results.push(...folderResults);
+        } catch (error) {
+          console.warn(`Error searching in folder ${folder.name}:`, error);
+          // Continue with other folders even if one fails
+        }
+      }
+    }
+
+    if (enableDebugLogging) {
+      console.log(`Total results from all folders: ${results.length}`);
+    }
     return results.slice(0, options.maxResults || 100);
   }
 
