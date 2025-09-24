@@ -73,7 +73,23 @@ export class RipgrepSearcher {
     if (enableDebugLogging) {
       console.log(`Total results from all folders: ${results.length}`);
     }
-    return results.slice(0, options.maxResults || 100);
+
+    // Apply file-level scoring bonuses based on match frequency per file
+    this.applyFileFrequencyBonus(results);
+    
+    // Sort results by relevance score (highest first) before applying limit
+    // This ensures that when we exceed maxResults, we keep the most relevant results
+    results.sort((a, b) => b.score - a.score);
+    
+    const maxResults = options.maxResults || 100;
+    const limitedResults = results.slice(0, maxResults);
+    
+    if (enableDebugLogging && results.length > maxResults) {
+      console.log(`Sorted and limited results: ${limitedResults.length}/${results.length} (kept highest scoring)`);
+      console.log(`Score range: ${limitedResults[0]?.score.toFixed(3)} - ${limitedResults[limitedResults.length - 1]?.score.toFixed(3)}`);
+    }
+    
+    return limitedResults;
   }
 
   private async searchInFolder(folderPath: string, options: SearchOptions): Promise<SearchResult[]> {
@@ -333,6 +349,57 @@ export class RipgrepSearcher {
     };
 
     return this.search(searchOptions);
+  }
+
+  /**
+   * Apply file frequency bonus to results based on number of matches per file
+   * Files with more matches get higher scores as they are likely more relevant
+   */
+  private applyFileFrequencyBonus(results: SearchResult[]): void {
+    // Count matches per file
+    const fileMatchCounts = new Map<string, number>();
+    results.forEach(result => {
+      const currentCount = fileMatchCounts.get(result.file) || 0;
+      fileMatchCounts.set(result.file, currentCount + 1);
+    });
+
+    // Calculate file frequency bonuses
+    const maxMatchesInFile = Math.max(...fileMatchCounts.values());
+    const enableDebugLogging = vscode.workspace.getConfiguration('smart-search').get('enableDebugLogging', false);
+    
+    if (enableDebugLogging) {
+      console.log(`File match distribution: ${fileMatchCounts.size} files, max ${maxMatchesInFile} matches per file`);
+    }
+
+    // Apply bonuses to each result based on its file's match count
+    results.forEach(result => {
+      const matchesInFile = fileMatchCounts.get(result.file) || 1;
+      
+      // Calculate frequency bonus (0.0 to 0.2 based on relative frequency)
+      let frequencyBonus = 0;
+      
+      if (matchesInFile >= 2) {
+        // Linear scaling: 2 matches = +0.05, 5 matches = +0.1, 10+ matches = +0.2
+        const normalizedFreq = Math.min(matchesInFile / 10, 1.0); // Cap at 10 matches
+        frequencyBonus = normalizedFreq * 0.2;
+        
+        // Additional bonus for files with many matches
+        if (matchesInFile >= 5) {
+          frequencyBonus += 0.05; // Extra bonus for high-frequency files
+        }
+        if (matchesInFile >= 10) {
+          frequencyBonus += 0.05; // Even more bonus for very high-frequency files
+        }
+      }
+      
+      // Apply the bonus while keeping score in valid range
+      const originalScore = result.score;
+      result.score = Math.min(result.score + frequencyBonus, 1.0);
+      
+      if (enableDebugLogging && frequencyBonus > 0) {
+        console.log(`File frequency bonus: ${result.file} (${matchesInFile} matches) ${originalScore.toFixed(3)} → ${result.score.toFixed(3)} (+${frequencyBonus.toFixed(3)})`);
+      }
+    });
   }
 
   /**
