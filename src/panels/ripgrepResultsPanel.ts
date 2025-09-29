@@ -4,12 +4,14 @@ import * as fs from 'fs';
 import { SearchResult, SearchOptions } from '../types';
 import { BaseResultsPanel } from './baseResultsPanel';
 import { RipgrepSearcher } from '../services/ripgrepSearcher';
+import { StatisticsPanel } from './statisticsPanel';
 
 export class RipgrepResultsPanel extends BaseResultsPanel {
   public static currentPanel: RipgrepResultsPanel | undefined;
   private static persistedSettings: SearchOptions | undefined;
   private ripgrepSearcher: RipgrepSearcher;
   private currentQuery: string = '';
+  private currentResults: SearchResult[] = [];
   private currentSettings: SearchOptions = {
     query: '',
     maxFiles: 100,
@@ -47,7 +49,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
 
   /**
    * Set up message handling for webview interactions
-   * Handles openFile commands and searchWithSettings requests
+   * Handles openFile commands, searchWithSettings requests, and showStatistics requests
    */
   private setupMessageHandling() {
     this._panel.webview.onDidReceiveMessage(
@@ -58,6 +60,9 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
             break;
           case 'searchWithSettings':
             this.performSearchWithSettings(message.query, message.settings);
+            break;
+          case 'showStatistics':
+            this.showStatistics();
             break;
         }
       },
@@ -130,6 +135,7 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
    */
   public show(results: SearchResult[], query: string, settings?: SearchOptions) {
     this.currentQuery = query;
+    this.currentResults = results; // Store results for statistics
     if (settings) {
       this.currentSettings = settings;
       // Persist only the fine-tuning settings for future searches (not the main search options)
@@ -151,6 +157,24 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
       data: { results, query, settings: this.currentSettings }
     });
     this.reveal();
+  }
+
+  /**
+   * Show statistics panel for current search results
+   */
+  private showStatistics() {
+    if (this.currentResults.length === 0) {
+      vscode.window.showInformationMessage('No search results available for statistics.');
+      return;
+    }
+
+    // Create or reuse statistics panel
+    let statisticsPanel = StatisticsPanel.currentPanel;
+    if (!statisticsPanel) {
+      statisticsPanel = StatisticsPanel.create(this._extensionUri);
+    }
+    
+    statisticsPanel.show(this.currentResults, this.currentQuery);
   }
 
   public dispose() {

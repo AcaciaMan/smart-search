@@ -18,10 +18,41 @@
       padding-bottom: 10px;
       margin-bottom: 20px;
     }
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px 0;
+      border-top: 1px solid var(--vscode-panel-border);
+      margin-top: 15px;
+      padding-top: 15px;
+    }
     .results-count {
       color: var(--vscode-descriptionForeground);
       font-size: 0.9em;
-      margin-bottom: 10px;
+      flex: 1;
+    }
+    .statistics-button {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: 1px solid var(--vscode-panel-border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: var(--vscode-font-family);
+      font-size: 0.85em;
+      transition: background-color 0.2s ease;
+    }
+    .statistics-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+      color: var(--vscode-button-foreground);
+    }
+    .statistics-button:disabled {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-descriptionForeground);
+      cursor: not-allowed;
+      opacity: 0.6;
     }
     .result-item {
       border: 1px solid var(--vscode-panel-border);
@@ -212,6 +243,10 @@
       color: var(--vscode-button-secondaryForeground);
       cursor: not-allowed;
     }
+    #statistics-button:hover:not(:disabled) {
+      background-color: var(--vscode-button-hoverBackground);
+      color: var(--vscode-button-foreground);
+    }
     .collapse-icon {
       transition: transform 0.2s ease;
     }
@@ -265,7 +300,10 @@
       </div>
     </div>
     
-    <div class="results-count" id="results-count">Found 0 results</div>
+    <div class="results-header">
+      <div class="results-count" id="results-count">Found 0 results</div>
+      <button class="statistics-button" onclick="showStatistics()" id="statistics-button">📊 Statistics</button>
+    </div>
   </div>
   <div id="results-container"></div>
 
@@ -359,6 +397,12 @@
       const button = document.getElementById('apply-button');
       button.disabled = false;
       button.textContent = 'Apply Settings';
+    }
+
+    function showStatistics() {
+      vscode.postMessage({
+        command: 'showStatistics'
+      });
     }
 
     function escapeHtml(text) {

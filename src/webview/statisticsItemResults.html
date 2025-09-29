@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Filtered Search Results</title>
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      padding: 20px;
+      margin: 0;
+    }
+
+    .header {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 15px;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      margin: 0 0 10px 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 1.3em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filter-info {
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      padding: 12px;
+      border-radius: 4px;
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .filter-detail {
+      font-family: monospace;
+      color: var(--vscode-textLink-foreground);
+    }
+
+    .original-query {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+    }
+
+    .results-count {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+      margin-bottom: 20px;
+    }
+
+    .result-item {
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      margin-bottom: 10px;
+      background-color: var(--vscode-editorWidget-background);
+    }
+
+    .result-header {
+      padding: 8px 12px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .result-header:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .file-path {
+      color: var(--vscode-textLink-foreground);
+      text-decoration: none;
+      font-family: var(--vscode-editor-font-family);
+    }
+
+    .line-info {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.9em;
+    }
+
+    .result-content {
+      padding: 4px 12px;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 12px !important;
+      line-height: 16px !important;
+    }
+    
+    .result-content * {
+      box-sizing: border-box;
+    }
+
+    .code-content {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px !important;
+      line-height: 16px !important;
+      padding-left: 4px;
+    }
+
+    .context-line {
+      margin: 0 !important;
+      padding: 0 !important;
+      border-radius: 2px;
+      transition: background-color 0.1s ease;
+      white-space: nowrap;
+      line-height: 16px !important;
+      font-size: 12px !important;
+      font-family: 'Consolas', 'Courier New', monospace !important;
+      min-height: 16px !important;
+      height: 16px !important;
+      max-height: 16px !important;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .context-line:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .match-text {
+      background-color: var(--vscode-editor-findMatchHighlightBackground);
+      color: var(--vscode-editor-findMatchForeground);
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+
+    .context-line-number {
+      color: var(--vscode-editorLineNumber-foreground);
+      width: 35px;
+      flex-shrink: 0;
+      text-align: right;
+      margin-right: 6px;
+      font-size: 11px !important;
+      font-family: 'Consolas', 'Courier New', monospace !important;
+      line-height: 16px !important;
+      height: 16px !important;
+    }
+
+    .match-score {
+      color: var(--vscode-descriptionForeground);
+      background-color: var(--vscode-badge-background);
+      font-size: 0.8em;
+      padding: 1px 4px;
+      border-radius: 8px;
+      margin-right: 8px;
+      min-width: 28px;
+      display: inline-block;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    .summary {
+      background-color: var(--vscode-textBlockQuote-background);
+      border-left: 3px solid var(--vscode-textLink-foreground);
+      padding: 6px 10px;
+      margin: 4px 0;
+      font-style: italic;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.2;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+    }
+
+    .empty-state h3 {
+      margin: 0 0 10px 0;
+      color: var(--vscode-textLink-foreground);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>
+      <span id="filter-title">Filtered Results</span>
+    </h1>
+    
+    <div class="filter-info">
+      <div class="filter-detail" id="filter-detail">Loading filter info...</div>
+      <div class="original-query">Original Query: <span id="original-query"></span></div>
+    </div>
+    
+    <div class="results-count" id="results-count">Found 0 results</div>
+  </div>
+
+  <div id="results-container"></div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    let currentData = null;
+
+    // Handle messages from the extension
+    window.addEventListener('message', event => {
+      const message = event.data;
+      switch (message.command) {
+        case 'updateResults':
+          updateResults(message.data);
+          break;
+      }
+    });
+
+    // Add event delegation for result headers
+    document.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-action="open-file"]');
+      if (target) {
+        const filePath = target.getAttribute('data-file-path');
+        const lineNumber = parseInt(target.getAttribute('data-line-number')) || 1;
+        const columnNumber = parseInt(target.getAttribute('data-column-number')) || 1;
+        if (filePath) {
+          openFile(filePath, lineNumber, columnNumber);
+        }
+      }
+    });
+
+    function updateResults(data) {
+      currentData = data;
+      
+      document.getElementById('filter-title').textContent = data.title || 'Filtered Results';
+      document.getElementById('filter-detail').textContent = `${data.filterCriteria.type}: "${data.filterCriteria.value}"`;
+      document.getElementById('original-query').textContent = data.originalQuery || '';
+      document.getElementById('results-count').textContent = `Found ${data.results.length} matching results`;
+
+      const resultsContainer = document.getElementById('results-container');
+      
+      if (data.results.length === 0) {
+        resultsContainer.innerHTML = `
+          <div class="empty-state">
+            <h3>No Results Found</h3>
+            <p>No matches found for this filter criteria.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Group results by file for better organization
+      const fileGroups = new Map();
+      
+      for (const result of data.results) {
+        if (!fileGroups.has(result.file)) {
+          fileGroups.set(result.file, {
+            file: result.file,
+            matches: [],
+            totalScore: 0,
+            summary: null
+          });
+        }
+        
+        fileGroups.get(result.file).matches.push(result);
+        fileGroups.get(result.file).totalScore += result.score || 0;
+        
+        // Use the first available summary for the file
+        if (result.summary && !fileGroups.get(result.file).summary) {
+          fileGroups.get(result.file).summary = result.summary;
+        }
+      }
+
+      // Sort file groups by total score
+      const sortedFileGroups = Array.from(fileGroups.values()).sort((a, b) => b.totalScore - a.totalScore);
+
+      let html = '';
+      for (const fileGroup of sortedFileGroups) {
+        const fileName = fileGroup.file.split('/').pop() || fileGroup.file;
+        const fileScore = fileGroup.totalScore.toFixed(2);
+        
+        html += `
+          <div class="result-item">
+            <div class="result-header" data-action="open-file" data-file-path="${escapeHtml(fileGroup.file)}" data-line-number="1" data-column-number="1">
+              <span class="file-path">${escapeHtml(fileName)}</span>
+              <span class="line-info">
+                <span class="match-score">${fileScore}</span>
+                ${fileGroup.matches.length} matches
+              </span>
+            </div>
+            <div class="result-content">
+              ${fileGroup.summary ? `<div class="summary">${escapeHtml(fileGroup.summary)}</div>` : ''}
+        `;
+
+        // Show individual matches within the file
+        for (const match of fileGroup.matches.slice(0, 5)) { // Limit to 5 matches per file
+          const contextLines = [];
+          
+          if (match.context && Array.isArray(match.context)) {
+            // The context array contains: [...beforeContext, matchLine, ...afterContext]
+            // We need to find where the match line is and calculate line numbers accordingly
+            const matchLineIndex = match.context.findIndex(line => line === match.content);
+            
+            if (matchLineIndex >= 0) {
+              // Process all context lines with correct line numbers
+              match.context.forEach((line, index) => {
+                const lineNum = match.line - matchLineIndex + index;
+                contextLines.push({
+                  number: lineNum,
+                  content: line,
+                  isMatch: index === matchLineIndex
+                });
+              });
+            } else {
+              // Fallback: if we can't find the match line in context, just show the match
+              contextLines.push({
+                number: match.line,
+                content: match.content,
+                isMatch: true
+              });
+            }
+          } else {
+            // No context available, just show the match line
+            contextLines.push({
+              number: match.line,
+              content: match.content,
+              isMatch: true
+            });
+          }
+
+          // Render context lines
+          contextLines.forEach(contextLine => {
+            const content = contextLine.isMatch ? 
+              highlightMatches(contextLine.content, data.originalQuery) : 
+              escapeHtml(contextLine.content);
+            
+            html += `
+              <div class="context-line" data-action="open-file" data-file-path="${escapeHtml(match.file)}" data-line-number="${contextLine.number}" data-column-number="${match.column || 1}">
+                <span class="context-line-number">${contextLine.number}</span><span class="code-content">${content}</span>
+              </div>
+            `;
+          });
+        }
+
+        if (fileGroup.matches.length > 5) {
+          html += `<div style="text-align: center; padding: 10px; color: var(--vscode-descriptionForeground); font-style: italic;">
+            ... and ${fileGroup.matches.length - 5} more matches
+          </div>`;
+        }
+
+        html += `
+            </div>
+          </div>
+        `;
+      }
+
+      resultsContainer.innerHTML = html;
+    }
+
+    function highlightMatches(content, query) {
+      if (!query) return escapeHtml(content);
+      
+      const escapedContent = escapeHtml(content);
+      const escapedQuery = escapeHtml(query);
+      
+      // Simple highlighting - in production you might want more sophisticated matching
+      const regex = new RegExp(`(${escapedQuery.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')})`, 'gi');
+      return escapedContent.replace(regex, '<span class="match-text">$1</span>');
+    }
+
+    function openFile(file, line, column) {
+      vscode.postMessage({
+        command: 'openFile',
+        file: file,
+        line: line,
+        column: column
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
