@@ -2,7 +2,8 @@
 
 Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries.
 
-<img alt="Screenshot_improved" src="https://github.com/user-attachments/assets/3686134a-eaa2-463e-9e21-fbb4e45c0525" />
+<img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
+
 
 ## Features
 
@@ -19,6 +20,8 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 - **Symbol Search**: Find functions, classes, and other code symbols quickly
 - **Rich Results**: Interactive search results panel with file navigation
 - **Settings Persistence**: Search settings are automatically saved and applied to new searches
+
+<img alt="Screenshot_ripgrep_stats_items" src="https://github.com/user-attachments/assets/07c62501-b80e-4dfb-b710-fa7bb0277c7e" />
 
 ## Installation
 
