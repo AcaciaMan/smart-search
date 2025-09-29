@@ -2,7 +2,7 @@
   "name": "smart-search-ripsolr",
   "displayName": "Smart Search with Ripgrep and Solr",
   "description": "Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, AI summaries, and advanced field-specific query syntax",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "publisher": "manacacia",
   "repository": {
     "type": "git",
