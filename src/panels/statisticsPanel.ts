@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { SearchResult } from '../types';
 import { BaseResultsPanel } from './baseResultsPanel';
-import { StatisticsItemResultsPanel, FilterCriteria } from './statisticsItemResultsPanel';
+import { StatisticsItemResultsPanel, FilterCriteria, MultipleFilterCriteria } from './statisticsItemResultsPanel';
 
 export interface StatisticsData {
   totalResults: number;
@@ -45,6 +45,9 @@ export class StatisticsPanel extends BaseResultsPanel {
             break;
           case 'clickStatisticsItem':
             this.handleStatisticsItemClick(message.filterCriteria);
+            break;
+          case 'searchWithMultipleFilters':
+            this.handleMultipleFiltersSearch(message.filterCriteria);
             break;
         }
       },
@@ -90,6 +93,35 @@ export class StatisticsPanel extends BaseResultsPanel {
     }
     
     filteredPanel.show(this.originalResults, criteria);
+  }
+
+  /**
+   * Handle search with multiple filters
+   */
+  private handleMultipleFiltersSearch(filterCriteriaArray: FilterCriteria[]) {
+    if (this.originalResults.length === 0) {
+      vscode.window.showInformationMessage('No original search results available.');
+      return;
+    }
+
+    if (filterCriteriaArray.length === 0) {
+      vscode.window.showInformationMessage('No filters selected.');
+      return;
+    }
+
+    // Create multiple filter criteria object
+    const multipleFilterCriteria: MultipleFilterCriteria = {
+      filters: filterCriteriaArray,
+      originalQuery: this.originalQuery
+    };
+
+    // Create or reuse filtered results panel
+    let filteredPanel = StatisticsItemResultsPanel.currentPanel;
+    if (!filteredPanel) {
+      filteredPanel = StatisticsItemResultsPanel.create(this._extensionUri);
+    }
+    
+    filteredPanel.showWithMultipleFilters(this.originalResults, multipleFilterCriteria);
   }
 
   private calculateStatistics(results: SearchResult[], query: string): StatisticsData {

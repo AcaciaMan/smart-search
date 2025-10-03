@@ -7,6 +7,11 @@ import { BaseResultsPanel } from './baseResultsPanel';
 export interface FilterCriteria {
   type: 'folder' | 'extension' | 'fileName' | 'prefix' | 'suffix' | 'recentFile';
   value: string;
+  originalQuery?: string;
+}
+
+export interface MultipleFilterCriteria {
+  filters: FilterCriteria[];
   originalQuery: string;
 }
 
@@ -61,12 +66,33 @@ export class StatisticsItemResultsPanel extends BaseResultsPanel {
     this.reveal();
   }
 
+  public showWithMultipleFilters(allResults: SearchResult[], multipleFilterCriteria: MultipleFilterCriteria) {
+    const filteredResults = this.filterResultsWithMultipleCriteria(allResults, multipleFilterCriteria);
+    const title = this.generateTitleForMultipleFilters(multipleFilterCriteria, filteredResults.length);
+    
+    this._panel.title = title;
+    this._panel.webview.html = this.getWebviewContent();
+    
+    // Send data to the webview
+    this._panel.webview.postMessage({
+      command: 'updateResults',
+      data: { 
+        results: filteredResults, 
+        filterCriteria: multipleFilterCriteria.filters,
+        title,
+        originalQuery: multipleFilterCriteria.originalQuery
+      }
+    });
+    
+    this.reveal();
+  }
+
   private filterResults(allResults: SearchResult[], criteria: FilterCriteria): SearchResult[] {
     switch (criteria.type) {
       case 'folder':
         return allResults.filter(result => {
           const folder = path.dirname(result.file);
-          return folder === criteria.value || folder.endsWith(criteria.value);
+          return folder === criteria.value || folder.includes(criteria.value);
         });
       
       case 'extension':
@@ -145,6 +171,106 @@ export class StatisticsItemResultsPanel extends BaseResultsPanel {
     }
 
     return { prefixes: [...new Set(prefixes)], suffixes: [...new Set(suffixes)] };
+  }
+
+  private filterResultsWithMultipleCriteria(allResults: SearchResult[], multipleFilterCriteria: MultipleFilterCriteria): SearchResult[] {
+    const { filters } = multipleFilterCriteria;
+    
+    if (filters.length === 0) {
+      return allResults;
+    }
+
+    // Group filters by category
+    const filtersByCategory = new Map<string, FilterCriteria[]>();
+    for (const filter of filters) {
+      if (!filtersByCategory.has(filter.type)) {
+        filtersByCategory.set(filter.type, []);
+      }
+      filtersByCategory.get(filter.type)!.push(filter);
+    }
+
+    return allResults.filter(result => {
+      // For each category, at least one filter in that category must match
+      // If multiple categories are selected, ALL categories must have at least one match
+      for (const [category, categoryFilters] of filtersByCategory) {
+        const categoryMatches = categoryFilters.some(filter => this.matchesFilter(result, filter));
+        if (!categoryMatches) {
+          return false; // This result doesn't match any filter in this category
+        }
+      }
+      return true; // This result matches at least one filter in each selected category
+    });
+  }
+
+  private matchesFilter(result: SearchResult, criteria: FilterCriteria): boolean {
+    switch (criteria.type) {
+      case 'folder':
+        const folder = path.dirname(result.file);
+        return folder === criteria.value || folder.includes(criteria.value);
+      
+      case 'extension':
+        const extension = path.extname(result.file).toLowerCase();
+        return extension === criteria.value || extension === `.${criteria.value}`;
+      
+      case 'fileName':
+        const fileName = path.basename(result.file);
+        return fileName === criteria.value;
+      
+      case 'prefix':
+        const baseName = path.basename(result.file, path.extname(result.file));
+        const patterns = this.extractFileNamePatterns(baseName);
+        return patterns.prefixes.includes(criteria.value);
+      
+      case 'suffix':
+        const baseNameSuffix = path.basename(result.file, path.extname(result.file));
+        const patternsSuffix = this.extractFileNamePatterns(baseNameSuffix);
+        return patternsSuffix.suffixes.includes(criteria.value);
+      
+      case 'recentFile':
+        const recentFileName = path.basename(result.file);
+        return recentFileName === criteria.value;
+      
+      default:
+        return false;
+    }
+  }
+
+  private generateTitleForMultipleFilters(multipleFilterCriteria: MultipleFilterCriteria, resultCount: number): string {
+    const { filters } = multipleFilterCriteria;
+    
+    if (filters.length === 0) {
+      return `All Results (${resultCount} matches)`;
+    }
+
+    const typeLabels = {
+      folder: 'Folder',
+      extension: 'Extension',
+      fileName: 'File Name', 
+      prefix: 'Prefix',
+      suffix: 'Suffix',
+      recentFile: 'Recent File'
+    };
+
+    // Group filters by type for better display
+    const filtersByType = new Map<string, string[]>();
+    for (const filter of filters) {
+      if (!filtersByType.has(filter.type)) {
+        filtersByType.set(filter.type, []);
+      }
+      filtersByType.get(filter.type)!.push(filter.value);
+    }
+
+    const filterDescriptions = Array.from(filtersByType.entries()).map(([type, values]) => {
+      const label = typeLabels[type as keyof typeof typeLabels] || type;
+      if (values.length === 1) {
+        return `${label}: "${values[0]}"`;
+      } else {
+        return `${label}: ${values.map(v => `"${v}"`).join(', ')}`;
+      }
+    });
+
+    const titlePrefix = filters.length === 1 ? 'Filter' : 'Filters';
+    return `${titlePrefix}: ${filterDescriptions.join(' AND ')} (${resultCount} matches)`;
   }
 
   private generateTitle(criteria: FilterCriteria, resultCount: number): string {

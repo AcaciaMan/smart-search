@@ -36,6 +36,103 @@
       margin: 10px 0;
     }
 
+    .filter-controls {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .filter-header h3 {
+      margin: 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 1.1em;
+    }
+
+    .filter-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .filter-button {
+      padding: 6px 12px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.9em;
+      transition: background-color 0.2s ease;
+      outline: none;
+    }
+
+    .filter-button:focus {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: 2px;
+    }
+
+    .filter-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+
+    .filter-button:disabled {
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      cursor: not-allowed;
+    }
+
+    .filter-button.primary {
+      background-color: var(--vscode-inputValidation-infoBackground);
+      color: var(--vscode-inputValidation-infoForeground);
+    }
+
+    .filter-button.primary:hover {
+      opacity: 0.9;
+    }
+
+    .selected-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      border-radius: 12px;
+      font-size: 0.8em;
+      gap: 6px;
+    }
+
+    .filter-tag .remove {
+      cursor: pointer;
+      font-weight: bold;
+      padding: 0 2px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.2);
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .filter-tag .remove:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+    }
+
     .summary-cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -80,8 +177,14 @@
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 30px;
+    }
+
+    @media (min-width: 900px) {
+      .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
     }
 
     .stats-table {
@@ -116,6 +219,12 @@
       border-bottom: 1px solid var(--vscode-panel-border);
       cursor: pointer;
       transition: background-color 0.2s ease;
+      outline: none;
+    }
+
+    .stats-item:focus {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: -2px;
     }
 
     .stats-item:last-child {
@@ -124,6 +233,20 @@
 
     .stats-item:hover {
       background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .stats-item.selected {
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .stats-item.selected .stats-count,
+    .stats-item.selected .stats-percentage {
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .stats-item.selected .progress-fill {
+      background-color: var(--vscode-list-activeSelectionForeground);
     }
 
     .stats-name {
@@ -166,6 +289,10 @@
       transition: width 0.3s ease;
     }
 
+    .top-folders {
+      grid-column: 1 / -1;
+    }
+
     .recent-files {
       grid-column: 1 / -1;
     }
@@ -178,6 +305,12 @@
       border-bottom: 1px solid var(--vscode-panel-border);
       cursor: pointer;
       transition: background-color 0.2s ease;
+      outline: none;
+    }
+
+    .recent-item:focus {
+      outline: 2px solid var(--vscode-focusBorder);
+      outline-offset: -2px;
     }
 
     .recent-item:last-child {
@@ -186,6 +319,16 @@
 
     .recent-item:hover {
       background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .recent-item.selected {
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .recent-item.selected .recent-date,
+    .recent-item.selected .recent-count {
+      color: var(--vscode-list-activeSelectionForeground);
     }
 
     .recent-file {
@@ -226,6 +369,25 @@
       .stats-grid {
         grid-template-columns: 1fr;
       }
+
+      .filter-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+      }
+
+      .filter-buttons {
+        justify-content: space-between;
+      }
+
+      .selected-filters {
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .filter-tag {
+        align-self: flex-start;
+      }
     }
   </style>
 </head>
@@ -252,10 +414,23 @@
     </div>
   </div>
 
+  <div class="filter-controls">
+    <div class="filter-header">
+      <h3>Selected Filters</h3>
+      <div class="filter-buttons">
+        <button class="filter-button" id="clear-filters" disabled>Clear All</button>
+        <button class="filter-button primary" id="search-button" disabled>Search Filtered Results</button>
+      </div>
+    </div>
+    <div class="selected-filters" id="selected-filters">
+      <span style="color: var(--vscode-descriptionForeground); font-style: italic;">Select items from the categories below to filter results</span>
+    </div>
+  </div>
+
   <div class="stats-section">
     <h2>File Analysis</h2>
     <div class="stats-grid">
-      <div class="stats-table">
+      <div class="stats-table top-folders">
         <h3>Top Folders</h3>
         <ul class="stats-list" id="top-folders"></ul>
       </div>
@@ -290,6 +465,7 @@
   <script>
     const vscode = acquireVsCodeApi();
     let currentStats = null;
+    let selectedFilters = new Map(); // Map<string, {type: string, value: string, displayName: string}>
 
     // Handle messages from the extension
     window.addEventListener('message', event => {
@@ -305,26 +481,68 @@
     document.addEventListener('click', (event) => {
       const statsItem = event.target.closest('.stats-item');
       const recentItem = event.target.closest('.recent-item');
+      const clearButton = event.target.closest('#clear-filters');
+      const searchButton = event.target.closest('#search-button');
+      const removeFilter = event.target.closest('.filter-tag .remove');
       
-      if (statsItem) {
+      if (removeFilter) {
+        handleRemoveFilter(removeFilter);
+      } else if (clearButton) {
+        handleClearFilters();
+      } else if (searchButton) {
+        handleSearchFiltered();
+      } else if (statsItem) {
         handleStatsItemClick(statsItem);
       } else if (recentItem) {
         handleRecentItemClick(recentItem);
       }
     });
 
+    // Add keyboard support
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        const target = event.target;
+        if (target.matches('.stats-item')) {
+          event.preventDefault();
+          handleStatsItemClick(target);
+        } else if (target.matches('.recent-item')) {
+          event.preventDefault();
+          handleRecentItemClick(target);
+        } else if (target.matches('#clear-filters')) {
+          event.preventDefault();
+          handleClearFilters();
+        } else if (target.matches('#search-button')) {
+          event.preventDefault();
+          handleSearchFiltered();
+        }
+      }
+    });
+
     function handleStatsItemClick(element) {
       const filterType = element.getAttribute('data-filter-type');
       const filterValue = element.getAttribute('data-filter-value');
+      const displayName = element.getAttribute('data-display-name') || filterValue;
       
       if (filterType && filterValue) {
-        vscode.postMessage({
-          command: 'clickStatisticsItem',
-          filterCriteria: {
+        const filterId = `${filterType}:${filterValue}`;
+        
+        if (selectedFilters.has(filterId)) {
+          // Deselect
+          selectedFilters.delete(filterId);
+          element.classList.remove('selected');
+          element.setAttribute('aria-pressed', 'false');
+        } else {
+          // Select
+          selectedFilters.set(filterId, {
             type: filterType,
-            value: filterValue
-          }
-        });
+            value: filterValue,
+            displayName: displayName
+          });
+          element.classList.add('selected');
+          element.setAttribute('aria-pressed', 'true');
+        }
+        
+        updateFilterDisplay();
       }
     }
 
@@ -332,14 +550,104 @@
       const fileName = element.getAttribute('data-file-name');
       
       if (fileName) {
-        vscode.postMessage({
-          command: 'clickStatisticsItem',
-          filterCriteria: {
+        const filterId = `recentFile:${fileName}`;
+        
+        if (selectedFilters.has(filterId)) {
+          // Deselect
+          selectedFilters.delete(filterId);
+          element.classList.remove('selected');
+          element.setAttribute('aria-pressed', 'false');
+        } else {
+          // Select
+          selectedFilters.set(filterId, {
             type: 'recentFile',
-            value: fileName
-          }
+            value: fileName,
+            displayName: fileName
+          });
+          element.classList.add('selected');
+          element.setAttribute('aria-pressed', 'true');
+        }
+        
+        updateFilterDisplay();
+      }
+    }
+
+    function handleRemoveFilter(removeElement) {
+      const filterTag = removeElement.closest('.filter-tag');
+      const filterId = filterTag.getAttribute('data-filter-id');
+      
+      if (filterId && selectedFilters.has(filterId)) {
+        selectedFilters.delete(filterId);
+        
+        // Remove selection from the corresponding item
+        const correspondingItem = document.querySelector(`[data-filter-type="${filterId.split(':')[0]}"][data-filter-value="${filterId.split(':')[1]}"]`);
+        if (correspondingItem) {
+          correspondingItem.classList.remove('selected');
+          correspondingItem.setAttribute('aria-pressed', 'false');
+        }
+        
+        updateFilterDisplay();
+      }
+    }
+
+    function handleClearFilters() {
+      // Remove all selections
+      document.querySelectorAll('.stats-item.selected, .recent-item.selected').forEach(item => {
+        item.classList.remove('selected');
+        item.setAttribute('aria-pressed', 'false');
+      });
+      
+      selectedFilters.clear();
+      updateFilterDisplay();
+    }
+
+    function handleSearchFiltered() {
+      if (selectedFilters.size > 0) {
+        const filterCriteriaArray = Array.from(selectedFilters.values());
+        
+        vscode.postMessage({
+          command: 'searchWithMultipleFilters',
+          filterCriteria: filterCriteriaArray
         });
       }
+    }
+
+    function updateFilterDisplay() {
+      const selectedFiltersElement = document.getElementById('selected-filters');
+      const clearButton = document.getElementById('clear-filters');
+      const searchButton = document.getElementById('search-button');
+      
+      if (selectedFilters.size === 0) {
+        selectedFiltersElement.innerHTML = '<span style="color: var(--vscode-descriptionForeground); font-style: italic;">Select items from the categories below to filter results</span>';
+        clearButton.disabled = true;
+        searchButton.disabled = true;
+      } else {
+        const filterTags = Array.from(selectedFilters.entries()).map(([filterId, filter]) => {
+          const categoryDisplay = getCategoryDisplayName(filter.type);
+          return `
+            <div class="filter-tag" data-filter-id="${escapeHtml(filterId)}">
+              <span>${categoryDisplay}: ${escapeHtml(filter.displayName)}</span>
+              <span class="remove" title="Remove filter">×</span>
+            </div>
+          `;
+        }).join('');
+        
+        selectedFiltersElement.innerHTML = filterTags;
+        clearButton.disabled = false;
+        searchButton.disabled = false;
+      }
+    }
+
+    function getCategoryDisplayName(filterType) {
+      const categoryMap = {
+        'folder': 'Folder',
+        'extension': 'Extension',
+        'fileName': 'File Name',
+        'prefix': 'Prefix',
+        'suffix': 'Suffix',
+        'recentFile': 'Recent File'
+      };
+      return categoryMap[filterType] || filterType;
     }
 
     function updateStatistics(stats) {
@@ -373,10 +681,11 @@
       listElement.innerHTML = items.map(item => {
         const value = item[keyName];
         const percentage = Math.round((item.count / maxCount) * 100);
+        const displayName = getDisplayName(value, keyName);
         
         return `
-          <li class="stats-item" data-filter-type="${getFilterTypeFromKey(keyName)}" data-filter-value="${escapeHtml(value)}" title="Click to view ${item.count} matching results">
-            <div class="stats-name" title="${escapeHtml(value)}">${escapeHtml(value)}</div>
+          <li class="stats-item" data-filter-type="${getFilterTypeFromKey(keyName)}" data-filter-value="${escapeHtml(value)}" data-display-name="${escapeHtml(displayName)}" title="Click to select/deselect for filtering" tabindex="0" role="button" aria-pressed="false">
+            <div class="stats-name" title="${escapeHtml(value)}">${escapeHtml(displayName)}</div>
             <div class="stats-count">${item.count}</div>
             <div class="stats-percentage">${item.percentage}%</div>
             <div class="progress-bar">
@@ -398,6 +707,15 @@
       return keyMap[keyName] || keyName;
     }
 
+    function getDisplayName(value, keyName) {
+      // For folders, show just the last part of the path for better readability
+      if (keyName === 'folder') {
+        const parts = value.split(/[\\/]/);
+        return parts[parts.length - 1] || value;
+      }
+      return value;
+    }
+
     function updateRecentModifications(items) {
       const listElement = document.getElementById('recent-modifications');
       
@@ -407,7 +725,7 @@
       }
 
       listElement.innerHTML = items.map(item => `
-        <li class="recent-item" data-file-name="${escapeHtml(item.file)}" title="Click to view ${item.count} matching results from ${item.file}">
+        <li class="recent-item" data-file-name="${escapeHtml(item.file)}" title="Click to select/deselect for filtering" tabindex="0" role="button" aria-pressed="false">
           <div class="recent-file" title="${escapeHtml(item.file)}">${escapeHtml(item.file)}</div>
           <div class="recent-date">${item.modifiedDate}</div>
           <div class="recent-count">${item.count}</div>
