@@ -21,7 +21,8 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 - **Rich Results**: Interactive search results panel with file navigation
 - **Settings Persistence**: Search settings are automatically saved and applied to new searches
 
-<img alt="Screenshot_ripgrep_stats_items" src="https://github.com/user-attachments/assets/07c62501-b80e-4dfb-b710-fa7bb0277c7e" />
+<img alt="Screenshot_ripgrep_stats_items" src="https://github.com/user-attachments/assets/5292a1af-c90d-4c9b-a03f-fcc2ca134c78" />
+
 
 ## Installation
 
