@@ -1,0 +1,46 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00bcf2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffa500;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="128" height="128" rx="20" fill="url(#bgGradient)"/>
+  
+  <!-- Magnifying glass circle -->
+  <circle cx="50" cy="50" r="26" fill="none" stroke="#ffffff" stroke-width="6"/>
+  
+  <!-- Magnifying glass handle -->
+  <line x1="70" y1="70" x2="92" y2="92" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- AI/Smart sparkles -->
+  <g fill="url(#accentGradient)">
+    <!-- Top right sparkle -->
+    <path d="M 90 25 L 92 30 L 97 32 L 92 34 L 90 39 L 88 34 L 83 32 L 88 30 Z"/>
+    
+    <!-- Bottom left sparkle -->
+    <path d="M 30 95 L 32 100 L 37 102 L 32 104 L 30 109 L 28 104 L 23 102 L 28 100 Z"/>
+    
+    <!-- Small sparkle near search -->
+    <path d="M 70 35 L 71 38 L 74 39 L 71 40 L 70 43 L 69 40 L 66 39 L 69 38 Z"/>
+  </g>
+  
+  <!-- Binary/code dots inside magnifying glass to represent code search -->
+  <g fill="#ffffff" opacity="0.8">
+    <circle cx="42" cy="45" r="2"/>
+    <circle cx="48" cy="45" r="2"/>
+    <circle cx="54" cy="45" r="2"/>
+    <circle cx="42" cy="52" r="2"/>
+    <circle cx="48" cy="52" r="2"/>
+    <circle cx="54" cy="52" r="2"/>
+    <circle cx="45" cy="58" r="2"/>
+    <circle cx="51" cy="58" r="2"/>
+  </g>
+</svg>

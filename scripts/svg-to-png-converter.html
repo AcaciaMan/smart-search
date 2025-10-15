@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG to PNG Converter - Smart Search Icon</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .preview-area {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .preview-box {
+            text-align: center;
+        }
+        .preview-box h3 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+        #svgPreview, #pngPreview {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            padding: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        canvas {
+            display: block;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+        }
+        #convertBtn {
+            background: linear-gradient(135deg, #0078d4, #00bcf2);
+        }
+        #convertBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 120, 212, 0.4);
+        }
+        #downloadBtn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        #downloadBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+        #downloadBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #0078d4;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info-box h4 {
+            margin-top: 0;
+            color: #0078d4;
+        }
+        .info-box p {
+            margin: 5px 0;
+            color: #333;
+            line-height: 1.6;
+        }
+        .success-message {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .size-info {
+            text-align: center;
+            color: #666;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 SVG to PNG Converter</h1>
+        <p class="subtitle">Smart Search Extension Icon Generator</p>
+
+        <div class="info-box">
+            <h4>Instructions:</h4>
+            <p>1. Click <strong>"Convert SVG to PNG"</strong> to generate the 128x128 PNG icon</p>
+            <p>2. Preview both versions to ensure quality</p>
+            <p>3. Click <strong>"Download PNG"</strong> to save as <code>icon.png</code></p>
+            <p>4. Place the downloaded file in your project root directory</p>
+        </div>
+
+        <div class="preview-area">
+            <div class="preview-box">
+                <h3>Original SVG</h3>
+                <div id="svgPreview"></div>
+                <div class="size-info">Scalable Vector</div>
+            </div>
+            <div class="preview-box">
+                <h3>Generated PNG</h3>
+                <canvas id="pngPreview" width="128" height="128"></canvas>
+                <div class="size-info">128 × 128 pixels</div>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button id="convertBtn" onclick="convertSvgToPng()">🔄 Convert SVG to PNG</button>
+            <button id="downloadBtn" onclick="downloadPng()" disabled>⬇️ Download PNG</button>
+        </div>
+
+        <div class="success-message" id="successMessage">
+            ✅ PNG generated successfully! Click "Download PNG" to save the file.
+        </div>
+    </div>
+
+    <script>
+        // The SVG content from icon.svg
+        const svgContent = `<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00bcf2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffa500;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="128" height="128" rx="20" fill="url(#bgGradient)"/>
+  
+  <!-- Magnifying glass circle -->
+  <circle cx="50" cy="50" r="26" fill="none" stroke="#ffffff" stroke-width="6"/>
+  
+  <!-- Magnifying glass handle -->
+  <line x1="70" y1="70" x2="92" y2="92" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- AI/Smart sparkles -->
+  <g fill="url(#accentGradient)">
+    <!-- Top right sparkle -->
+    <path d="M 90 25 L 92 30 L 97 32 L 92 34 L 90 39 L 88 34 L 83 32 L 88 30 Z"/>
+    
+    <!-- Bottom left sparkle -->
+    <path d="M 30 95 L 32 100 L 37 102 L 32 104 L 30 109 L 28 104 L 23 102 L 28 100 Z"/>
+    
+    <!-- Small sparkle near search -->
+    <path d="M 70 35 L 71 38 L 74 39 L 71 40 L 70 43 L 69 40 L 66 39 L 69 38 Z"/>
+  </g>
+  
+  <!-- Binary/code dots inside magnifying glass to represent code search -->
+  <g fill="#ffffff" opacity="0.8">
+    <circle cx="42" cy="45" r="2"/>
+    <circle cx="48" cy="45" r="2"/>
+    <circle cx="54" cy="45" r="2"/>
+    <circle cx="42" cy="52" r="2"/>
+    <circle cx="48" cy="52" r="2"/>
+    <circle cx="54" cy="52" r="2"/>
+    <circle cx="45" cy="58" r="2"/>
+    <circle cx="51" cy="58" r="2"/>
+  </g>
+</svg>`;
+
+        // Display the SVG preview on page load
+        window.onload = function() {
+            document.getElementById('svgPreview').innerHTML = svgContent;
+        };
+
+        let pngDataUrl = null;
+
+        function convertSvgToPng() {
+            const canvas = document.getElementById('pngPreview');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            // Create a blob from the SVG content
+            const svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw the SVG image onto the canvas
+                ctx.drawImage(img, 0, 0, 128, 128);
+                
+                // Convert canvas to PNG data URL
+                pngDataUrl = canvas.toDataURL('image/png');
+                
+                // Enable download button
+                document.getElementById('downloadBtn').disabled = false;
+                
+                // Show success message
+                document.getElementById('successMessage').style.display = 'block';
+                
+                // Clean up
+                URL.revokeObjectURL(url);
+            };
+
+            img.onerror = function() {
+                alert('Error converting SVG to PNG. Please try again.');
+                URL.revokeObjectURL(url);
+            };
+
+            img.src = url;
+        }
+
+        function downloadPng() {
+            if (!pngDataUrl) {
+                alert('Please convert the SVG first!');
+                return;
+            }
+
+            // Create a temporary link element
+            const link = document.createElement('a');
+            link.download = 'icon.png';
+            link.href = pngDataUrl;
+            
+            // Trigger the download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Update success message
+            document.getElementById('successMessage').innerHTML = 
+                '✅ PNG downloaded successfully! Copy it to your project root directory.';
+        }
+    </script>
+</body>
+</html>

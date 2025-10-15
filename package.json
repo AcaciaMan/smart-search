@@ -24,8 +24,9 @@
     "find",
     "discover"
   ],
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "manacacia",
+  "icon": "icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/AcaciaMan/smart-search.git"
@@ -38,7 +39,9 @@
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages",
+    "Data Science",
+    "Visualization"
   ],
   "activationEvents": [
     "onCommand:smart-search.search",
