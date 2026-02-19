@@ -124,47 +124,7 @@
             background-color: var(--vscode-button-hoverBackground);
         }
         
-        .search-options {
-            margin-top: 12px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 8px;
-        }
-        
-        .option-checkbox {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.9em;
-            padding: 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-        
-        .option-checkbox:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .option-checkbox input {
-            margin: 0;
-            cursor: pointer;
-        }
-        
-        /* Live Search Mode specific styles */
-        .search-mode-live .search-options {
-            opacity: 1;
-        }
-        
-        /* Session Search Mode specific styles */
-        .search-mode-session .search-options {
-            opacity: 0.7;
-        }
-        
-        .search-mode-session .option-checkbox:not(.session-relevant) {
-            opacity: 0.5;
-            pointer-events: none;
-        }
+        /* Live/Session search-options moved to dedicated Tools sidebar views */
         
         .search-buttons {
             margin-top: 16px;
@@ -315,34 +275,7 @@
             margin: 16px 0;
         }
         
-        .search-history {
-            margin-top: 16px;
-        }
-        
-        .search-history h4 {
-            margin: 0 0 8px 0;
-            font-size: 0.9em;
-            color: var(--vscode-foreground);
-        }
-        
-        .history-item {
-            padding: 8px;
-            margin-bottom: 4px;
-            background-color: var(--vscode-input-background);
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 0.85em;
-            transition: background-color 0.1s ease;
-            line-height: 1.4;
-        }
-        
-        .history-item:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-
-        .history-item small {
-            font-size: 0.75em;
-        }
+        /* history styles moved to recentSearchView */
 
         /* Suggestion dropdown styles */
         .search-input-container {
@@ -419,34 +352,16 @@
                 <span class="session-info-text" id="sessionInfoText">
                     Searching in latest session
                 </span>
-                <button class="session-change-btn" id="changeSessionBtn">Change</button>
+                <button class="session-change-btn" id="changeSessionBtn" title="Open Recent Searches panel">📋 Recent</button>
             </div>
             
-            <div class="search-options">
-                <label class="option-checkbox session-relevant">
-                    <input type="checkbox" id="caseSensitive" />
-                    <span>Case sensitive</span>
-                </label>
-                <label class="option-checkbox session-relevant">
-                    <input type="checkbox" id="wholeWord" />
-                    <span>Whole word</span>
-                </label>
-                <label class="option-checkbox">
-                    <input type="checkbox" id="useRegex" />
-                    <span>Regex</span>
-                </label>
-                <!-- Hidden checkbox for internal use -->
-                <input type="checkbox" id="searchInResults" style="display: none;" />
-            </div>
+            <!-- Hidden flag for search mode (live vs session) -->
+            <input type="checkbox" id="searchInResults" style="display: none;" />
             
             <div class="search-buttons">
                 <button id="searchBtn" class="btn btn-primary">
                     <span id="searchBtnIcon">🔍</span>
                     <span id="searchBtnText">Search Files</span>
-                </button>
-                <button id="sessionsBtn" class="btn btn-secondary">
-                    <span>📋</span>
-                    <span>Manage Sessions</span>
                 </button>
                 <button id="clearSettingsBtn" class="btn btn-tertiary hidden" title="Clear persisted search settings">
                     <span>⚙️</span>
@@ -479,16 +394,7 @@
         </div>
     </div>
     
-    <div class="divider"></div>
-    
-    <div class="search-history" id="searchHistory">
-        <h4>Recent Searches</h4>
-        <div id="historyList">
-            <div class="history-item" data-search-query="TODO" data-action="search">TODO</div>
-            <div class="history-item" data-search-query="function" data-action="search">function</div>
-            <div class="history-item" data-search-query="import" data-action="search">import</div>
-        </div>
-    </div>
+
     
     <script>
         try {
@@ -496,10 +402,6 @@
         
         const searchInput = document.getElementById('searchInput');
         const searchBtn = document.getElementById('searchBtn');
-        const sessionsBtn = document.getElementById('sessionsBtn');
-        const caseSensitive = document.getElementById('caseSensitive');
-        const wholeWord = document.getElementById('wholeWord');
-        const useRegex = document.getElementById('useRegex');
         const searchInResults = document.getElementById('searchInResults');
         const status = document.getElementById('status');
         const clearSettingsBtn = document.getElementById('clearSettingsBtn');
@@ -515,7 +417,7 @@
         const workflowInfo = document.getElementById('workflowInfo');
         
         // Check for required elements
-        if (!searchInput || !searchBtn || !sessionsBtn) {
+        if (!searchInput || !searchBtn) {
             throw new Error('Required HTML elements are missing');
         }
         
@@ -582,54 +484,14 @@
             sessionModeTab.addEventListener('click', () => switchToMode('session'));
         }
         
-        // Change session button
+        // Change session button → reveal the Recent Searches sidebar view
         if (changeSessionBtn) {
             changeSessionBtn.addEventListener('click', () => {
-                loadSessions();
+                vscode.postMessage({ type: 'revealRecentView' });
             });
         }
         
-        // Add event delegation for history items (both click and dblclick)
-        const historyList = document.getElementById('historyList');
-        
-        function handleHistoryItemClick(event) {
-            const target = event.target.closest('.history-item');
-            if (!target) return;
-            
-            const action = target.getAttribute('data-action');
-            const query = target.getAttribute('data-search-query');
-            
-            if (action === 'search') {
-                if (query) {
-                    // Decode the Base64 encoded query
-                    try {
-                        const decodedQuery = decodeURIComponent(escape(atob(query)));
-                        searchFromHistory(decodedQuery);
-                    } catch (error) {
-                        console.error('Error decoding query:', error);
-                        // Fallback to using the query as-is
-                        searchFromHistory(query);
-                    }
-                }
-            } else if (action === 'select-session') {
-                const sessionId = target.getAttribute('data-session-id');
-                if (sessionId) {
-                    const originalSessionId = unescapeHtml(sessionId);
-                    selectSession(originalSessionId);
-                }
-            }
-        }
-        
-        if (historyList) {
-            historyList.addEventListener('click', handleHistoryItemClick);
-            historyList.addEventListener('dblclick', handleHistoryItemClick);
-        }
-        
-        // Restore state
-        const state = vscode.getState() || {};
-        if (state.searchHistory) {
-            updateHistoryDisplay(state.searchHistory);
-        }
+        // No local history list – history is now in the Recent Searches sidebar view
         
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -660,17 +522,13 @@
                 setTimeout(hideStatus, 2000);
                 return;
             }
-            
+
+            // Toggle options (case, word, regex) are read by the extension
+            // directly from the Live Tools / Session Tools sidebar views.
             const options = {
-                caseSensitive: caseSensitive.checked,
-                wholeWord: wholeWord.checked,
-                useRegex: useRegex.checked,
-                searchInResults: currentMode === 'session' // Always use session mode state
+                searchInResults: currentMode === 'session'
             };
-            
-            // Add to history
-            addToHistory(query);
-            
+
             vscode.postMessage({
                 type: 'search',
                 query: query,
@@ -678,86 +536,7 @@
             });
         }
         
-        function loadSessions() {
-            vscode.postMessage({
-                type: 'loadSessions'
-            });
-        }
-        
-        function addToHistory(query) {
-            const state = vscode.getState() || {};
-            const history = state.searchHistory || [];
-            
-            // Remove if already exists
-            const filtered = history.filter(item => item !== query);
-            
-            // Add to beginning
-            filtered.unshift(query);
-            
-            // Keep only last 10
-            const newHistory = filtered.slice(0, 10);
-            
-            // Update state
-            vscode.setState({ ...state, searchHistory: newHistory });
-            updateHistoryDisplay(newHistory);
-        }
-        
-        function updateHistoryDisplay(history) {
-            const historyList = document.getElementById('historyList');
-            if (history && history.length > 0) {
-                const htmlContent = history.map((item, index) => {
-                    const escapedItem = escapeHtml(item);
-                    // Use Base64 encoding to completely avoid quote issues
-                    const encodedItem = btoa(unescape(encodeURIComponent(item)));
-                    return `<div class="history-item" data-search-query="${encodedItem}" data-action="search">${escapedItem}</div>`;
-                }).join('');
-                historyList.innerHTML = htmlContent;
-            }
-        }
-        
-        function updateSessionsList(sessions, latestSessionId) {
-            const historyList = document.getElementById('historyList');
-            if (sessions && sessions.length > 0) {
-                // Display sessions with timestamp and result count
-                const sessionItems = sessions.map(session => {
-                    const isLatest = session.sessionId === latestSessionId ? ' (Latest)' : '';
-                    const timestamp = new Date(session.timestamp).toLocaleString();
-                    return `<div class="history-item" data-session-id="${escapeHtml(session.sessionId)}" data-action="select-session" title="Click to select as target for 'Search in stored results'">
-                        📋 ${escapeHtml(session.query)}${isLatest}<br>
-                        <small style="color: var(--vscode-descriptionForeground);">${escapeHtml(timestamp)} • ${session.resultCount} results</small>
-                    </div>`;
-                }).join('');
-                
-                // Also show recent search history
-                const state = vscode.getState() || {};
-                const history = state.searchHistory || [];
-                const historyItems = history.map(item => 
-                    `<div class="history-item" data-search-query="${escapeHtml(item)}" data-action="search" title="Search again">🔍 ${escapeHtml(item)}</div>`
-                ).join('');
-                
-                // Combine with divider
-                historyList.innerHTML = historyItems + 
-                    (historyItems && sessionItems ? '<div style="border-top: 1px solid var(--vscode-panel-border); margin: 8px 0;"></div>' : '') + 
-                    sessionItems;
-            } else {
-                historyList.innerHTML = '<div style="text-align: center; color: var(--vscode-descriptionForeground); font-style: italic;">No stored sessions found</div>';
-            }
-        }
-
-        function selectSession(sessionId) {
-            vscode.postMessage({
-                type: 'selectSession',
-                sessionId: sessionId
-            });
-        }
-
-        function searchFromHistory(query) {
-            searchInput.value = query;
-            performSearch();
-        }
-        
         searchBtn.addEventListener('click', performSearch);
-        sessionsBtn.addEventListener('click', loadSessions);
         
         // Add event listeners with safety checks
         if (clearSettingsBtn) {
@@ -931,10 +710,11 @@
                     break;
                     
                 case 'sessionsLoaded':
-                    updateSessionsList(message.sessions, message.latestSessionId);
+                    // Sessions are now shown in the Recent Searches sidebar view
                     break;
                     
                 case 'sessionSelected':
+                    {
                     const sessionInfoText = document.getElementById('sessionInfoText');
                     const sessionInfo = document.getElementById('sessionInfo');
                     const shortId = message.sessionId.substring(0, 8);
@@ -950,6 +730,33 @@
                     switchToMode('session');
                     showStatus('Session selected for search', 'success');
                     setTimeout(hideStatus, 2000);
+                    break;
+                    }
+
+                case 'setQuery':
+                    // Fill the search input from the Recent Searches panel
+                    if (searchInput && message.query) {
+                        searchInput.value = message.query;
+                        searchInput.focus();
+                        searchInput.setSelectionRange(message.query.length, message.query.length);
+                        showStatus(`Query loaded: "${message.query}"`, 'success');
+                        setTimeout(hideStatus, 1500);
+                    }
+                    break;
+
+                case 'activateSessionMode':
+                    // Select session and switch to session mode
+                    {
+                    const sInfoText = document.getElementById('sessionInfoText');
+                    const sInfo = document.getElementById('sessionInfo');
+                    const sid = message.sessionId || '';
+                    const shortSid = sid.substring(0, 8);
+                    if (sInfoText) { sInfoText.textContent = `Searching in session ${shortSid}...`; }
+                    if (sInfo) { sInfo.textContent = `session ${shortSid}...`; }
+                    switchToMode('session');
+                    showStatus('Session mode activated', 'success');
+                    setTimeout(hideStatus, 1500);
+                    }
                     break;
                     
                 case 'suggestions':

@@ -6,6 +6,8 @@ import { IndexManager } from '../services';
 import { SearchResult, SearchOptions } from '../types';
 import { RipgrepResultsPanel } from '../panels/ripgrepResultsPanel';
 import { SolrResultsPanel } from '../panels/solrResultsPanel';
+import { RecentSearchViewProvider } from './recentSearchViewProvider';
+import { ToolsViewProvider } from './toolsViewProvider';
 
 export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'smartSearch.searchView';
@@ -14,7 +16,10 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   private latestSessionId?: string; // Track the latest search session
 
   constructor(
-    private readonly _extensionUri: vscode.Uri
+    private readonly _extensionUri: vscode.Uri,
+    private readonly recentSearchViewProvider?: RecentSearchViewProvider,
+    private readonly liveToolsProvider?: ToolsViewProvider,
+    private readonly sessionToolsProvider?: ToolsViewProvider
   ) {
     const indexManager = new IndexManager();
     this.searchProvider = new SmartSearchProvider(indexManager);
@@ -42,9 +47,6 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'openFile':
           await this.openFile(data.file, data.line, data.column);
           break;
-        case 'loadSessions':
-          await this.loadSearchSessions();
-          break;
         case 'selectSession':
           this.selectSession(data.sessionId);
           break;
@@ -60,8 +62,34 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         case 'getSuggestions':
           await this.getSuggestions(data.query, data.sessionId);
           break;
+        case 'revealRecentView':
+          // Focus the Recent Searches sidebar view
+          vscode.commands.executeCommand('smartSearch.recentSearchView.focus');
+          break;
       }
     });
+  }
+
+  // ─── Public API called from extension.ts (cross-panel) ─────────────────────
+
+  /** Fill the search input in this view (called when user clicks a history item) */
+  public setQuery(query: string) {
+    if (this._view) {
+      this._view.webview.postMessage({ type: 'setQuery', query });
+    }
+  }
+
+  /** Select a session from an external trigger (called from RecentSearchViewProvider) */
+  public selectSessionFromExternal(sessionId: string) {
+    this.selectSession(sessionId);
+  }
+
+  /** Select a session AND switch to session mode (called when user clicks "Search" in Recent view) */
+  public activateSessionMode(sessionId: string) {
+    this.latestSessionId = sessionId;
+    if (this._view) {
+      this._view.webview.postMessage({ type: 'activateSessionMode', sessionId });
+    }
   }
 
   private async getSuggestions(query: string, sessionId?: string) {
@@ -118,8 +146,11 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
       } else {
         // Get persisted settings from RipgrepResultsPanel if available
         const persistedSettings = RipgrepResultsPanel.getPersistedSettings();
-        
-        // Merge persisted settings with current options
+
+        // Read live-search toggle options from the Live Tools sidebar view
+        const liveOpts = this.liveToolsProvider?.getOptions();
+
+        // Merge: persisted panel settings win, then Live Tools toggles
         effectiveSearchOptions = {
           query,
           maxFiles: persistedSettings?.maxFiles || options.maxFiles || 100,
@@ -127,9 +158,9 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           contextLinesAfter: persistedSettings?.contextLinesAfter || options.contextLinesAfter || 30,
           includePatterns: persistedSettings?.includePatterns || options.includePatterns,
           excludePatterns: persistedSettings?.excludePatterns || options.excludePatterns,
-          caseSensitive: persistedSettings?.caseSensitive || options.caseSensitive || false,
-          wholeWord: persistedSettings?.wholeWord || options.wholeWord || false,
-          useRegex: persistedSettings?.useRegex || options.useRegex || false,
+          caseSensitive: persistedSettings?.caseSensitive ?? liveOpts?.caseSensitive ?? false,
+          wholeWord:     persistedSettings?.wholeWord     ?? liveOpts?.wholeWord     ?? false,
+          useRegex:      persistedSettings?.useRegex      ?? liveOpts?.useRegex      ?? false,
           searchInResults: options.searchInResults || false
         };
         
@@ -150,6 +181,15 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
               sessionId: this.latestSessionId,
               resultCount: results.length
             });
+
+            // Notify the Recent Searches sidebar view
+            if (this.recentSearchViewProvider) {
+              this.recentSearchViewProvider.notifyNewSearch(
+                query,
+                this.latestSessionId,
+                results.length
+              );
+            }
           }
         }
       }
@@ -167,9 +207,15 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         
         // Get persisted settings and merge with current options
         const persistedSettings = SolrResultsPanel.getPersistedSettings();
+
+        // Read session-search toggle options from the Session Tools sidebar view
+        const sessionOpts = this.sessionToolsProvider?.getOptions();
+
         const mergedOptions = {
           query,  // Solr needs the query to search for
           ...options,
+          caseSensitive: sessionOpts?.caseSensitive ?? options.caseSensitive ?? false,
+          wholeWord:     sessionOpts?.wholeWord     ?? options.wholeWord     ?? false,
           maxResults: persistedSettings.maxResults || 1000, // Large default for Solr
         };
         
@@ -306,24 +352,6 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
     }
     
     return filePath;
-  }
-
-  private async loadSearchSessions() {
-    if (!this._view) {
-      return;
-    }
-
-    try {
-      const sessions = await this.searchProvider.getSearchSessions();
-      
-      this._view.webview.postMessage({
-        type: 'sessionsLoaded',
-        sessions: sessions,
-        latestSessionId: this.latestSessionId
-      });
-    } catch (error) {
-      vscode.window.showErrorMessage(`Failed to load search sessions: ${error}`);
-    }
   }
 
   private selectSession(sessionId: string) {

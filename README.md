@@ -1,13 +1,30 @@
-# Smart Search
+﻿# Smart Search
 
 Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries.
 
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
+## What's New in v2.0.0
+
+v2.0.0 reorganizes the Smart Search activity bar into **four dedicated sidebar panels**, making every control visible at a glance without cluttering the main search box.
+
+| Panel | Purpose |
+|-------|---------|
+| 🔍 **Search** | Query input and Live / Session mode switcher |
+| ⚙️ **Live Tools** | Case, Whole Word, Regex toggles for ripgrep searches |
+| 🗄️ **Session Tools** | Case, Whole Word toggles for Solr / Session searches |
+| 🕐 **Recent Searches** | Full history + stored sessions in one place |
+
+See the [Changelog](CHANGELOG.md) for the complete list of changes.
+
+
 ## Features
 
-- **Dual Search Modes**: Choose between Live Search (workspace files) and Session Search (stored results)
+- **Reorganized Sidebar UI**: Four dedicated panels – Search, Live Tools, Session Tools, Recent Searches
+- **Dual Search Modes**: Live Search (workspace files via ripgrep) and Session Search (stored Solr results)
+- **Icon Toggle Toolbars**: Case Sensitive, Whole Word, and Regex controls live in compact icon toolbars in their own sidebar panels, keeping the main search view clean
+- **Recent Searches Panel**: Tabbed view showing clickable search history and stored sessions; clicking a history item fills the search box; clicking a session switches to Session mode automatically
 - **Multi-Folder Search**: Automatically searches across all workspace folders with intelligent parallel processing
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
 - **Session-Based Search**: Search within previously stored results for rapid exploration and refinement
@@ -17,7 +34,6 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 - **Intelligent Indexing**: Optional Solr integration for advanced search and indexing capabilities
 - **Auto-Suggestions**: Smart query suggestions based on your search history and stored results
 - **AI-Powered Summaries**: Get contextual summaries of search results (when enabled)
-- **Symbol Search**: Find functions, classes, and other code symbols quickly
 - **Rich Results**: Interactive search results panel with file navigation
 - **Settings Persistence**: Search settings are automatically saved and applied to new searches
 
@@ -55,43 +71,63 @@ See the detailed configuration guide: [SOLR_HIGHLIGHTING_CONFIG.md](SOLR_HIGHLIG
 
 ## Usage
 
-### Two Search Modes
+### Activity Bar Layout
 
-Smart Search offers two distinct search modes for different use cases:
+When you open the Smart Search panel you will see four collapsible sections in the sidebar:
 
-#### 🔍 Live Search Mode
-- **Purpose**: Search your workspace files in real-time using ripgrep
-- **Best for**: Finding content across your entire project
-- **Features**: 
-  - Lightning-fast file search
-  - Results are automatically stored for future reference
-  - Full workspace coverage
-- **Usage**: Select the "Live Search" tab and enter your query
+#### 🔍 Search
+The main query input. Use the **Live Search** / **Session Search** tabs to switch modes. Press `Enter` or the Search button to execute.
 
-#### 🗂️ Session Search Mode  
-- **Purpose**: Search within previously stored search results
-- **Best for**: Refining and exploring previous search results
-- **Features**:
-  - Instant results (no file system scanning)
-  - Search within specific search sessions
-  - Perfect for iterative exploration
-- **Usage**: Select the "Session Search" tab to search within stored results
+#### ⚙️ Live Tools
+Compact icon toolbar for **ripgrep live searches**. Toggles persist across searches.
+
+| Icon | Option | Effect |
+|------|--------|--------|
+| `Aa` | Case Sensitive | Match exact letter case |
+| `ab` | Whole Word | Match complete words only |
+| `.*` | Regex | Interpret query as a regular expression |
+
+The status strip at the bottom of this panel shows which filters are currently active (e.g., *Active: Case · .**)
+
+#### 🗄️ Session Tools
+Compact icon toolbar for **Session / Solr searches**. Same Case Sensitive and Whole Word toggles (Regex is not applicable to Solr session queries).
+
+#### 🕐 Recent Searches
+Tabbed panel with two views:
+
+- **Recent tab** – Full search history. Click any item to load the query into the main search input and bring the Search panel into focus.
+- **Sessions tab** – All stored sessions with timestamp and result count. Click a row to select it as the target for Session Search; use the **Search** action button to immediately switch the main view to Session mode for that session.
 
 ### Basic Search
 - Press `Ctrl+Shift+F` (or `Cmd+Shift+F` on Mac) to open Smart Search
 - Choose your search mode (Live or Session)
+- Set any toggle options in the Live Tools or Session Tools panel
 - Enter your search query and press Enter
 - Results will appear in a dedicated panel
 
+### Two Search Modes
+
+#### 🔍 Live Search Mode
+- **Purpose**: Search your workspace files in real-time using ripgrep
+- **Best for**: Finding content across your entire project
+- **Toggle options**: Set in the **Live Tools** panel (Case, Word, Regex)
+- **Usage**: Select the "Live Search" tab and enter your query
+
+#### 🗂️ Session Search Mode
+- **Purpose**: Search within previously stored search results
+- **Best for**: Refining and exploring previous search results
+- **Toggle options**: Set in the **Session Tools** panel (Case, Word)
+- **Usage**: Select the "Session Search" tab, or click a session in the *Recent Searches* panel
+
 ### Session Management
 - **Automatic Sessions**: Each Live Search automatically creates a new session
-- **Session Selection**: In Session Search mode, click "Change" to select a different session
-- **Session Info**: The interface shows which session you're searching and how many results it contains
-- **Recent Activity**: View and access your recent searches and sessions
+- **Session Selection**: Open the *Recent Searches* panel → *Sessions* tab → click a row
+- **Session Info**: The Session mode info bar shows which session is active
+- **Recent Activity**: The *Recent Searches* panel shows full history and sessions
 
-### Enhanced Query Syntax (New!)
+### Enhanced Query Syntax
 
-Smart Search now supports both simple queries and advanced Solr field-specific queries:
+Smart Search supports both simple queries and advanced Solr field-specific queries:
 
 #### Simple Queries (Default)
 ```text
@@ -143,19 +179,6 @@ The search interface provides intelligent auto-suggestions based on:
 - **File Names**: Relevant file names and paths
 - **Global Terms**: Popular terms across all stored results
 
-### User Interface Features
-
-#### Modern Two-Mode Interface
-- **Tab-Based Mode Selection**: Clearly distinguish between Live and Session search
-- **Visual Feedback**: Different styling and icons for each search mode
-- **Session Info Bar**: Shows which session you're searching in Session mode
-- **Contextual Help**: Mode-specific workflow guidance
-
-#### Enhanced Search Options
-- **Organized Settings**: Search options grouped by relevance (Text Matching, Search Mode)
-- **Smart Defaults**: Session-relevant options are highlighted when appropriate
-- **Visual States**: Clear indication of active search mode and settings
-
 ### Search Settings
 Both ripgrep and Solr result panels include collapsible settings panels for fine-tuning search results:
 
@@ -184,7 +207,7 @@ All search settings are automatically persisted and will be applied to new searc
 
 #### Session-Scoped Search
 - **Latest Session Priority**: Session Search defaults to your most recent session
-- **Session Switching**: Easily switch between different stored sessions
+- **Session Switching**: Open *Recent Searches* → *Sessions* tab and click any session
 - **Session Metadata**: View session details including result count and creation time
 
 ### Workspace Indexing
@@ -194,18 +217,18 @@ All search settings are automatically persisted and will be applied to new searc
 ## Key Workflows
 
 ### Typical Search Workflow
-1. **Start with Live Search**: Use Live Search mode to find content across your workspace
-2. **Review Results**: Examine the search results and stored session information
-3. **Refine with Session Search**: Switch to Session Search mode to drill down within the results
-4. **Iterate**: Use Session Search to explore different aspects of your findings
-5. **Session Management**: Access previous sessions through the "Manage Sessions" button
+1. **Start with Live Search**: Use the Live Search tab; set Case/Word/Regex as needed in the **Live Tools** panel
+2. **Review Results**: Examine the ripgrep results panel
+3. **Refine with Session Search**: Switch to Session Search; adjust options in the **Session Tools** panel
+4. **Iterate**: Use the *Recent Searches* panel to reload previous queries or switch sessions
+5. **Session Management**: Open *Recent Searches* → *Sessions* tab at any time
 
 ### Best Practices
-- **Use Live Search** for broad discovery across your entire workspace
-- **Use Session Search** for focused exploration and refinement
+- **Live Tools panel** – toggle Case/Regex before a Live Search to avoid re-running
+- **Session Tools panel** – adjust Case/Word for session refinements without losing the active session
+- **Recent Searches panel** – keep it open alongside the Search panel for quick navigation
 - **Leverage Suggestions** for faster query composition
-- **Organize Sessions** by keeping related searches in the same session
-- **Monitor Session Info** to understand the scope of your current search
+- **Monitor Session Info** bar to know the scope of your current session search
 
 ## Configuration
 
@@ -218,18 +241,7 @@ The extension can be configured through VS Code settings:
 - `smart-search.maxParallelFolders`: Maximum folders for parallel search (default: 5)
 - `smart-search.enableDebugLogging`: Enable debug logging for searches (default: false)
 
-### Search Mode Configuration
-
-The extension automatically manages search modes, but you can influence behavior through:
-
-- **Session Management**: Sessions are automatically created and managed
-- **Default Search Scope**: Live Search is the default for new queries
-- **Session Retention**: Previous sessions are kept available for future use
-- **Auto-Suggestions**: Powered by session content and search history
-
 ### Default Search Fields Configuration
-
-You can customize which fields are searched by default for simple queries:
 
 ```json
 {
@@ -237,15 +249,7 @@ You can customize which fields are searched by default for simple queries:
 }
 ```
 
-**Examples:**
-- `"content_all"` - Search only in content
-- `"content_all,code_all"` - Search in content and code (default)  
-- `"match_text,file_name,file_path"` - Search in specific fields only
-- `"content_all,code_all,ai_summary"` - Include AI summaries in default search
-
 ### Multi-Folder Search Configuration
-
-The extension automatically searches across **all workspace folders** when multiple folders are open in VS Code. You can control the search behavior with these settings:
 
 ```json
 {
@@ -255,27 +259,9 @@ The extension automatically searches across **all workspace folders** when multi
 ```
 
 #### Search Strategy
-- **2-5 folders**: **Parallel search** for optimal performance
-- **1 folder or 6+ folders**: **Sequential search** to avoid system overload
+- **2-5 folders**: Parallel search for optimal performance
+- **1 folder or 6+ folders**: Sequential search to avoid system overload
 - **Error resilience**: Failed folders don't break the entire search
-
-#### Configuration Options
-- `smart-search.maxParallelFolders` (default: 5)
-  - Maximum folders to search in parallel
-  - Range: 1-10 folders
-  - Higher values = faster search but more system resources
-
-- `smart-search.enableDebugLogging` (default: false)
-  - Shows detailed multi-folder search progress
-  - Useful for troubleshooting workspace setup
-  - Displays: folder discovery, search strategy, results per folder
-
-#### Benefits
-- **🚀 Performance**: Up to 5x faster with parallel search (2-5 folders)
-- **🛡️ Reliability**: Individual folder errors don't stop search
-- **📊 Visibility**: Optional logging shows search progress
-- **⚙️ Adaptive**: Automatically chooses best search strategy
-- **🎯 Complete Coverage**: Searches all workspace folders automatically
 
 ## Requirements
 
@@ -290,3 +276,4 @@ See the [Development Guide](docs/development.md) for information on building and
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

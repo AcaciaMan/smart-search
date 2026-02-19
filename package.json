@@ -19,12 +19,11 @@
     "text search",
     "full-text",
     "lucene",
-    "elasticsearch",
     "grep",
     "find",
     "discover"
   ],
-  "version": "1.1.1",
+  "version": "2.0.0",
   "publisher": "manacacia",
   "icon": "icon.png",
   "repository": {
@@ -39,13 +38,14 @@
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Programming Languages",
-    "Data Science",
-    "Visualization"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onCommand:smart-search.search",
-    "onView:smartSearch.searchView"
+    "onView:smartSearch.searchView",
+    "onView:smartSearch.liveTools",
+    "onView:smartSearch.sessionTools",
+    "onView:smartSearch.recentSearchView"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -83,6 +83,24 @@
           "name": "Search",
           "type": "webview",
           "icon": "$(search)"
+        },
+        {
+          "id": "smartSearch.liveTools",
+          "name": "Live Tools",
+          "type": "webview",
+          "icon": "$(tools)"
+        },
+        {
+          "id": "smartSearch.sessionTools",
+          "name": "Session Tools",
+          "type": "webview",
+          "icon": "$(database)"
+        },
+        {
+          "id": "smartSearch.recentSearchView",
+          "name": "Recent Searches",
+          "type": "webview",
+          "icon": "$(history)"
         }
       ]
     },

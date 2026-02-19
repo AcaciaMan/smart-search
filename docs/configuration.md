@@ -43,6 +43,33 @@ sudo dnf install ripgrep
 
 ## Configuration Options
 
-- `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
-- `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
-- `smart-search.maxFiles`: Maximum files to return results from (default: 100)
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `smart-search.solrUrl` | `http://localhost:8983/solr` | Solr server URL |
+| `smart-search.enableAISummaries` | `true` | Enable AI-powered result summaries |
+| `smart-search.maxFiles` | `100` | Maximum files to return results from |
+| `smart-search.defaultSolrFields` | `content_all,code_all` | Default fields for simple queries |
+| `smart-search.maxParallelFolders` | `5` | Max folders to search in parallel (1-10) |
+| `smart-search.enableDebugLogging` | `false` | Enable debug logging for multi-folder search |
+
+### Example settings.json
+```json
+{
+  "smart-search.solrUrl": "http://localhost:8983/solr",
+  "smart-search.enableAISummaries": true,
+  "smart-search.maxFiles": 100,
+  "smart-search.defaultSolrFields": "content_all,code_all",
+  "smart-search.maxParallelFolders": 5,
+  "smart-search.enableDebugLogging": false
+}
+```
+
+## Sidebar Search Options (v2.0.0)
+
+From v2.0.0 onwards, the Case Sensitive, Whole Word, and Regex toggles are no longer checkboxes inside the Search view. They are icon-toggle buttons in dedicated sidebar panels:
+
+- **Live Tools** panel: Case Sensitive (`Aa`), Whole Word (`ab`), Regex (`.*`) — used for ripgrep live searches
+- **Session Tools** panel: Case Sensitive (`Aa`), Whole Word (`ab`) — used for Solr session searches
+
+Toggle state is read synchronously at search time and persists across VS Code sessions via webview state.
+

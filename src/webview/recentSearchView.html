@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recent Searches</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-sideBar-background);
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Tabs */
+        .tab-bar {
+            display: flex;
+            background-color: var(--vscode-textCodeBlock-background);
+            border-bottom: 1px solid var(--vscode-widget-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 9px 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            color: var(--vscode-descriptionForeground);
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            justify-content: center;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--vscode-foreground);
+            border-bottom: 2px solid var(--vscode-button-background);
+            background-color: var(--vscode-sideBar-background);
+        }
+
+        .tab-btn:hover:not(.active) {
+            background-color: var(--vscode-list-hoverBackground);
+            color: var(--vscode-foreground);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 0.75em;
+            min-width: 18px;
+        }
+
+        /* Tab panels */
+        .tab-panel {
+            display: none;
+            padding: 8px 0;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        /* Section header row */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 12px 6px;
+        }
+
+        .section-title {
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--vscode-descriptionForeground);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            line-height: 1;
+            transition: all 0.15s ease;
+        }
+
+        .icon-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            color: var(--vscode-foreground);
+        }
+
+        /* List items */
+        .list-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 7px 12px;
+            cursor: pointer;
+            transition: background-color 0.1s ease;
+            border-left: 2px solid transparent;
+        }
+
+        .list-item:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-left-color: var(--vscode-button-background);
+        }
+
+        .list-item.selected {
+            background-color: var(--vscode-list-activeSelectionBackground);
+            color: var(--vscode-list-activeSelectionForeground);
+            border-left-color: var(--vscode-button-background);
+        }
+
+        .item-icon {
+            font-size: 0.9em;
+            margin-top: 1px;
+            flex-shrink: 0;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .list-item:hover .item-icon,
+        .list-item.selected .item-icon {
+            color: inherit;
+        }
+
+        .item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .item-query {
+            font-size: 0.9em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: var(--vscode-editor-font-family);
+        }
+
+        .item-meta {
+            font-size: 0.75em;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .list-item:hover .item-meta,
+        .list-item.selected .item-meta {
+            color: inherit;
+            opacity: 0.75;
+        }
+
+        .item-actions {
+            display: none;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .list-item:hover .item-actions {
+            display: flex;
+        }
+
+        .action-btn {
+            background: none;
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-size: 0.75em;
+            cursor: pointer;
+            color: var(--vscode-foreground);
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .action-btn:hover {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+
+        /* Latest session badge */
+        .latest-badge {
+            display: inline-flex;
+            align-items: center;
+            background-color: var(--vscode-inputValidation-infoBackground);
+            color: var(--vscode-inputValidation-infoForeground);
+            border: 1px solid var(--vscode-inputValidation-infoBorder);
+            border-radius: 3px;
+            padding: 0 5px;
+            font-size: 0.7em;
+            margin-left: 4px;
+            font-weight: 600;
+        }
+
+        /* Empty state */
+        .empty-state {
+            padding: 20px 12px;
+            text-align: center;
+            color: var(--vscode-descriptionForeground);
+            font-size: 0.85em;
+            font-style: italic;
+        }
+
+        /* Refresh bar */
+        .refresh-bar {
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+
+        .refresh-btn {
+            background: none;
+            border: 1px solid var(--vscode-widget-border);
+            border-radius: 4px;
+            padding: 3px 10px;
+            font-size: 0.8em;
+            cursor: pointer;
+            color: var(--vscode-foreground);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+        }
+
+        .refresh-btn:hover {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+
+        /* Spinner */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spinning {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Status message */
+        .status-msg {
+            padding: 6px 12px;
+            font-size: 0.8em;
+            display: none;
+        }
+
+        .status-msg.info {
+            color: var(--vscode-inputValidation-infoForeground);
+            background-color: var(--vscode-inputValidation-infoBackground);
+        }
+
+        .status-msg.success {
+            color: var(--vscode-inputValidation-warningForeground);
+            background-color: var(--vscode-inputValidation-warningBackground);
+        }
+
+        .status-msg.show {
+            display: block;
+        }
+
+        /* Divider */
+        .divider {
+            border-top: 1px solid var(--vscode-panel-border);
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tabHistory" data-tab="history">
+            <span>🕐</span>
+            <span>Recent</span>
+            <span class="badge" id="historyBadge">0</span>
+        </button>
+        <button class="tab-btn" id="tabSessions" data-tab="sessions">
+            <span>🗂️</span>
+            <span>Sessions</span>
+            <span class="badge" id="sessionsBadge">0</span>
+        </button>
+    </div>
+
+    <div id="statusMsg" class="status-msg"></div>
+
+    <!-- ── RECENT SEARCHES PANEL ── -->
+    <div class="tab-panel active" id="panelHistory">
+        <div class="section-header">
+            <span class="section-title">Search History</span>
+            <button class="icon-btn" id="clearHistoryBtn" title="Clear history">🗑</button>
+        </div>
+        <div id="historyList">
+            <div class="empty-state">No recent searches yet.<br>Searches will appear here automatically.</div>
+        </div>
+    </div>
+
+    <!-- ── SESSIONS PANEL ── -->
+    <div class="tab-panel" id="panelSessions">
+        <div class="refresh-bar">
+            <button class="refresh-btn" id="refreshSessionsBtn">
+                <span id="refreshIcon">↺</span>
+                <span>Refresh</span>
+            </button>
+        </div>
+        <div class="section-header">
+            <span class="section-title">Stored Sessions</span>
+        </div>
+        <div id="sessionsList">
+            <div class="empty-state">No sessions found.<br>Run a search to create a session.</div>
+        </div>
+    </div>
+
+    <script>
+        try {
+            const vscode = acquireVsCodeApi();
+            let state = vscode.getState() || { history: [], selectedSessionId: null };
+            let currentSessions = [];
+            let currentTab = 'history';
+
+            // ── DOM refs ──────────────────────────────────────────────────────
+            const tabHistory    = document.getElementById('tabHistory');
+            const tabSessions   = document.getElementById('tabSessions');
+            const panelHistory  = document.getElementById('panelHistory');
+            const panelSessions = document.getElementById('panelSessions');
+            const historyList   = document.getElementById('historyList');
+            const sessionsList  = document.getElementById('sessionsList');
+            const historyBadge  = document.getElementById('historyBadge');
+            const sessionsBadge = document.getElementById('sessionsBadge');
+            const clearHistoryBtn      = document.getElementById('clearHistoryBtn');
+            const refreshSessionsBtn   = document.getElementById('refreshSessionsBtn');
+            const statusMsg            = document.getElementById('statusMsg');
+
+            // ── Helpers ───────────────────────────────────────────────────────
+            function escapeHtml(text) {
+                const d = document.createElement('div');
+                d.textContent = text;
+                return d.innerHTML;
+            }
+
+            function showStatus(msg, type, duration = 2000) {
+                statusMsg.textContent = msg;
+                statusMsg.className = `status-msg ${type} show`;
+                if (duration > 0) {
+                    setTimeout(() => { statusMsg.className = 'status-msg'; }, duration);
+                }
+            }
+
+            function saveState() {
+                vscode.setState(state);
+            }
+
+            // ── Tab switching ─────────────────────────────────────────────────
+            function switchTab(tab) {
+                currentTab = tab;
+                tabHistory.classList.toggle('active', tab === 'history');
+                tabSessions.classList.toggle('active', tab === 'sessions');
+                panelHistory.classList.toggle('active', tab === 'history');
+                panelSessions.classList.toggle('active', tab === 'sessions');
+
+                if (tab === 'sessions') {
+                    loadSessions();
+                }
+            }
+
+            tabHistory.addEventListener('click', () => switchTab('history'));
+            tabSessions.addEventListener('click', () => switchTab('sessions'));
+
+            // ── History rendering ─────────────────────────────────────────────
+            function renderHistory() {
+                const history = state.history || [];
+                historyBadge.textContent = history.length;
+
+                if (history.length === 0) {
+                    historyList.innerHTML = '<div class="empty-state">No recent searches yet.<br>Searches will appear here automatically.</div>';
+                    return;
+                }
+
+                historyList.innerHTML = history.map((query, i) => {
+                    const encoded = btoa(unescape(encodeURIComponent(query)));
+                    return `<div class="list-item" data-action="history-search" data-encoded="${escapeHtml(encoded)}">
+                        <span class="item-icon">🔍</span>
+                        <div class="item-content">
+                            <div class="item-query">${escapeHtml(query)}</div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="action-btn" data-action="history-use" data-encoded="${escapeHtml(encoded)}" title="Use this query">Use</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            function addToHistory(query) {
+                const history = state.history || [];
+                const filtered = history.filter(q => q !== query);
+                filtered.unshift(query);
+                state.history = filtered.slice(0, 20);
+                saveState();
+                renderHistory();
+            }
+
+            clearHistoryBtn.addEventListener('click', () => {
+                state.history = [];
+                saveState();
+                renderHistory();
+                showStatus('History cleared', 'success');
+            });
+
+            // ── Sessions rendering ────────────────────────────────────────────
+            function renderSessions(sessions, latestSessionId) {
+                currentSessions = sessions || [];
+                sessionsBadge.textContent = currentSessions.length;
+
+                if (currentSessions.length === 0) {
+                    sessionsList.innerHTML = '<div class="empty-state">No sessions found.<br>Run a search to create a session.</div>';
+                    return;
+                }
+
+                sessionsList.innerHTML = currentSessions.map(session => {
+                    const isLatest = session.sessionId === latestSessionId;
+                    const isSelected = session.sessionId === state.selectedSessionId;
+                    const ts = new Date(session.timestamp).toLocaleString();
+                    const latestBadge = isLatest ? '<span class="latest-badge">Latest</span>' : '';
+
+                    return `<div class="list-item${isSelected ? ' selected' : ''}"
+                                 data-action="session-select"
+                                 data-session-id="${escapeHtml(session.sessionId)}"
+                                 title="Click to select session for 'Session Search'">
+                        <span class="item-icon">🗂️</span>
+                        <div class="item-content">
+                            <div class="item-query">${escapeHtml(session.query)}${latestBadge}</div>
+                            <div class="item-meta">${escapeHtml(ts)} &nbsp;•&nbsp; ${session.resultCount} results</div>
+                        </div>
+                        <div class="item-actions">
+                            <button class="action-btn" data-action="session-search" data-session-id="${escapeHtml(session.sessionId)}" title="Search in this session">Search</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            function loadSessions() {
+                const icon = document.getElementById('refreshIcon');
+                if (icon) icon.classList.add('spinning');
+                vscode.postMessage({ type: 'loadSessions' });
+            }
+
+            refreshSessionsBtn.addEventListener('click', loadSessions);
+
+            // ── Item click handling ───────────────────────────────────────────
+            function handleListClick(e) {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+
+                const action    = btn.dataset.action;
+                const encoded   = btn.dataset.encoded;
+                const sessionId = btn.dataset.sessionId;
+
+                if (action === 'history-search' || action === 'history-use') {
+                    let query;
+                    try {
+                        query = decodeURIComponent(escape(atob(encoded)));
+                    } catch {
+                        query = encoded;
+                    }
+                    vscode.postMessage({ type: 'useHistoryQuery', query });
+                    showStatus(`Query loaded: "${query}"`, 'success');
+                }
+
+                if (action === 'session-select') {
+                    state.selectedSessionId = sessionId;
+                    saveState();
+                    renderSessions(currentSessions, currentSessions.find(s => s !== undefined)?.sessionId);
+                    vscode.postMessage({ type: 'selectSession', sessionId });
+                    showStatus('Session selected', 'success');
+                }
+
+                if (action === 'session-search') {
+                    vscode.postMessage({ type: 'searchInSession', sessionId });
+                    showStatus('Switched to session search', 'info');
+                }
+            }
+
+            historyList.addEventListener('click', handleListClick);
+            sessionsList.addEventListener('click', handleListClick);
+
+            // ── Messages from extension ───────────────────────────────────────
+            window.addEventListener('message', event => {
+                const msg = event.data;
+
+                switch (msg.type) {
+                    case 'addHistory':
+                        addToHistory(msg.query);
+                        break;
+
+                    case 'sessionsLoaded': {
+                        const icon = document.getElementById('refreshIcon');
+                        if (icon) icon.classList.remove('spinning');
+                        renderSessions(msg.sessions, msg.latestSessionId);
+                        break;
+                    }
+
+                    case 'sessionSelected':
+                        state.selectedSessionId = msg.sessionId;
+                        saveState();
+                        renderSessions(currentSessions, null);
+                        showStatus('Session selected', 'success');
+                        break;
+
+                    case 'newSessionCreated':
+                        // Refresh sessions list and add the query to history
+                        if (msg.query) addToHistory(msg.query);
+                        if (currentTab === 'sessions') {
+                            loadSessions();
+                        } else {
+                            // Bump badge
+                            sessionsBadge.textContent = parseInt(sessionsBadge.textContent || '0') + 1;
+                        }
+                        break;
+                }
+            });
+
+            // ── Init ──────────────────────────────────────────────────────────
+            renderHistory();
+            // Eagerly load sessions once
+            vscode.postMessage({ type: 'loadSessions' });
+
+        } catch (err) {
+            console.error('recentSearchView error:', err);
+            document.body.innerHTML = '<div style="color: red; padding: 12px;">Error loading recent searches: ' + err.message + '</div>';
+        }
+    </script>
+</body>
+</html>

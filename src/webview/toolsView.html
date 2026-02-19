@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tools</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: var(--vscode-font-family);
+            font-size: var(--vscode-font-size);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-sideBar-background);
+            overflow: hidden;
+        }
+
+        /* ── Main toolbar strip ──────────────────────────────────────────── */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 8px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-label {
+            font-size: 0.72em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--vscode-descriptionForeground);
+            margin-right: 6px;
+            white-space: nowrap;
+        }
+
+        /* ── Individual toggle button ────────────────────────────────────── */
+        .toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 22px;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            background: none;
+            cursor: pointer;
+            color: var(--vscode-descriptionForeground);
+            transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+            position: relative;
+        }
+
+        .toggle-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-widget-border);
+            color: var(--vscode-foreground);
+        }
+
+        .toggle-btn.active {
+            background-color: var(--vscode-inputOption-activeBackground,
+                              rgba(var(--vscode-button-background-rgb, 0, 120, 212), 0.2));
+            border-color: var(--vscode-inputOption-activeBorder,
+                           var(--vscode-button-background));
+            color: var(--vscode-inputOption-activeForeground,
+                        var(--vscode-button-background));
+        }
+
+        /* Icon glyphs using text — match VS Code's built-in search icons */
+        .icon-case {
+            font-size: 11px;
+            font-weight: 700;
+            font-family: var(--vscode-editor-font-family, monospace);
+            letter-spacing: -1px;
+        }
+
+        .icon-word {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--vscode-editor-font-family, monospace);
+            border-bottom: 1.5px solid currentColor;
+            line-height: 1;
+            padding-bottom: 1px;
+        }
+
+        .icon-regex {
+            font-size: 12px;
+            font-family: var(--vscode-editor-font-family, monospace);
+        }
+
+        .icon-clear {
+            font-size: 11px;
+        }
+
+        /* ── Divider ─────────────────────────────────────────────────────── */
+        .toolbar-sep {
+            width: 1px;
+            height: 16px;
+            background-color: var(--vscode-panel-border);
+            margin: 0 4px;
+        }
+
+        /* ── Labels row (below toolbar) ──────────────────────────────────── */
+        .labels-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 0 8px 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-label-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 28px;
+        }
+
+        .btn-label {
+            font-size: 0.65em;
+            color: var(--vscode-descriptionForeground);
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            user-select: none;
+        }
+
+        /* ── Status strip ────────────────────────────────────────────────── */
+        .active-summary {
+            padding: 3px 8px 4px;
+            font-size: 0.75em;
+            color: var(--vscode-descriptionForeground);
+            border-top: 1px solid var(--vscode-panel-border);
+            min-height: 18px;
+        }
+
+        .active-summary.has-active {
+            color: var(--vscode-inputValidation-infoForeground);
+            background-color: var(--vscode-inputValidation-infoBackground);
+        }
+
+        /* ── Separator dots ──────────────────────────────────────────────── */
+        .sep-label {
+            margin: 0 3px;
+            color: var(--vscode-panel-border);
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar" id="toolbar">
+        <!-- Buttons injected by JS based on mode -->
+    </div>
+    <div class="labels-row" id="labelsRow"></div>
+    <div class="active-summary" id="activeSummary">No filters active</div>
+
+    <script>
+    try {
+        const vscode = acquireVsCodeApi();
+
+        // ── Configuration passed via body data attribute ──────────────────
+        // The provider injects: data-mode="live" or data-mode="session"
+        const mode = document.body.dataset.mode || 'live';
+
+        // ── Button definitions ────────────────────────────────────────────
+        const LIVE_BUTTONS = [
+            {
+                id: 'caseSensitive',
+                title: 'Case Sensitive (Alt+C)',
+                iconClass: 'icon-case',
+                iconText: 'Aa',
+                label: 'Case'
+            },
+            {
+                id: 'wholeWord',
+                title: 'Whole Word (Alt+W)',
+                iconClass: 'icon-word',
+                iconText: 'ab',
+                label: 'Word'
+            },
+            {
+                id: 'useRegex',
+                title: 'Use Regular Expression (Alt+R)',
+                iconClass: 'icon-regex',
+                iconText: '.*',
+                label: 'Regex'
+            }
+        ];
+
+        const SESSION_BUTTONS = [
+            {
+                id: 'caseSensitive',
+                title: 'Case Sensitive',
+                iconClass: 'icon-case',
+                iconText: 'Aa',
+                label: 'Case'
+            },
+            {
+                id: 'wholeWord',
+                title: 'Whole Word',
+                iconClass: 'icon-word',
+                iconText: 'ab',
+                label: 'Word'
+            }
+        ];
+
+        const buttons = mode === 'live' ? LIVE_BUTTONS : SESSION_BUTTONS;
+
+        // ── State ─────────────────────────────────────────────────────────
+        const restoreState = vscode.getState() || {};
+        const state = {
+            caseSensitive: restoreState.caseSensitive || false,
+            wholeWord:     restoreState.wholeWord     || false,
+            useRegex:      restoreState.useRegex      || false
+        };
+
+        // ── Build toolbar ─────────────────────────────────────────────────
+        const toolbar   = document.getElementById('toolbar');
+        const labelsRow = document.getElementById('labelsRow');
+
+        buttons.forEach((btn, idx) => {
+            // Button
+            const el = document.createElement('button');
+            el.className = 'toggle-btn' + (state[btn.id] ? ' active' : '');
+            el.id = 'btn_' + btn.id;
+            el.title = btn.title;
+            el.setAttribute('aria-pressed', String(state[btn.id]));
+            el.innerHTML = `<span class="${btn.iconClass}">${btn.iconText}</span>`;
+            el.addEventListener('click', () => toggleOption(btn.id, el));
+            toolbar.appendChild(el);
+
+            // Label cell
+            const cell = document.createElement('div');
+            cell.className = 'btn-label-cell';
+            cell.innerHTML = `<span class="btn-label">${btn.label}</span>`;
+            labelsRow.appendChild(cell);
+        });
+
+        // ── Toggle logic ──────────────────────────────────────────────────
+        function toggleOption(id, el) {
+            state[id] = !state[id];
+            el.classList.toggle('active', state[id]);
+            el.setAttribute('aria-pressed', String(state[id]));
+            persistAndNotify();
+        }
+
+        function persistAndNotify() {
+            vscode.setState(state);
+            vscode.postMessage({ type: 'optionsChanged', mode, options: { ...state } });
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('activeSummary');
+            const parts = [];
+            if (state.caseSensitive) { parts.push('Case'); }
+            if (state.wholeWord)     { parts.push('Word'); }
+            if (state.useRegex)      { parts.push('.*'); }
+
+            if (parts.length === 0) {
+                summary.textContent = 'No filters active';
+                summary.className = 'active-summary';
+            } else {
+                summary.textContent = 'Active: ' + parts.join(' · ');
+                summary.className = 'active-summary has-active';
+            }
+        }
+
+        // ── Messages from extension ───────────────────────────────────────
+        window.addEventListener('message', event => {
+            const msg = event.data;
+            if (msg.type === 'setOptions') {
+                Object.assign(state, msg.options);
+                buttons.forEach(btn => {
+                    const el = document.getElementById('btn_' + btn.id);
+                    if (el) {
+                        el.classList.toggle('active', !!state[btn.id]);
+                        el.setAttribute('aria-pressed', String(!!state[btn.id]));
+                    }
+                });
+                vscode.setState(state);
+                updateSummary();
+            }
+            if (msg.type === 'getOptions') {
+                vscode.postMessage({ type: 'optionsChanged', mode, options: { ...state } });
+            }
+        });
+
+        // Init summary
+        updateSummary();
+
+    } catch (err) {
+        document.body.innerHTML = '<div style="color:red;padding:8px">Error: ' + err.message + '</div>';
+    }
+    </script>
+</body>
+</html>
