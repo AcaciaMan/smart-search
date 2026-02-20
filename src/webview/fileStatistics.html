@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Search Statistics</title>
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      padding: 20px;
+      margin: 0;
+      line-height: 1.6;
+    }
+
+    .header {
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      margin: 0 0 8px 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 1.4em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-badge {
+      font-size: 0.6em;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 2px 7px;
+      border-radius: 10px;
+      vertical-align: middle;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    .query-info {
+      background-color: var(--vscode-editorWidget-background);
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--vscode-panel-border);
+      font-family: monospace;
+      margin: 8px 0 0 0;
+    }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .summary-card {
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .summary-card h3 {
+      margin: 0 0 8px 0;
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .summary-card .value {
+      font-size: 1.9em;
+      font-weight: bold;
+      color: var(--vscode-textLink-foreground);
+      margin: 0;
+    }
+
+    .stats-section {
+      margin-bottom: 36px;
+    }
+
+    .stats-section h2 {
+      margin: 0 0 16px 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 1.2em;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 8px;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    @media (min-width: 900px) {
+      .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .stats-table {
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .stats-table h3 {
+      margin: 0;
+      padding: 12px 16px;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      color: var(--vscode-textLink-foreground);
+      font-size: 1em;
+    }
+
+    .stats-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .stats-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      cursor: pointer;
+      transition: background-color 0.1s;
+    }
+
+    .stats-item:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .stats-item.filter-active {
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+      border-left: 3px solid var(--vscode-textLink-foreground);
+    }
+
+    .stats-item.filter-active .stats-count,
+    .stats-item.filter-active .stats-percentage {
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .stats-item.filter-active .progress-fill {
+      background-color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .stats-item:last-child {
+      border-bottom: none;
+    }
+
+    .stats-name {
+      flex: 1;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.9em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 12px;
+    }
+
+    .stats-count {
+      font-weight: bold;
+      color: var(--vscode-textLink-foreground);
+      margin-right: 8px;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .stats-percentage {
+      font-size: 0.8em;
+      color: var(--vscode-descriptionForeground);
+      min-width: 34px;
+      text-align: right;
+    }
+
+    .progress-bar {
+      width: 56px;
+      height: 4px;
+      background-color: var(--vscode-panel-border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-left: 8px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background-color: var(--vscode-textLink-foreground);
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .recent-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      cursor: pointer;
+      transition: background-color 0.1s;
+    }
+
+    .recent-item:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .recent-item.filter-active {
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+      border-left: 3px solid var(--vscode-textLink-foreground);
+    }
+
+    .recent-item.filter-active .recent-date,
+    .recent-item.filter-active .recent-count {
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .recent-item:last-child {
+      border-bottom: none;
+    }
+
+    .recent-file {
+      flex: 1;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.9em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 12px;
+    }
+
+    .recent-date {
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.85em;
+      margin-right: 12px;
+      min-width: 80px;
+    }
+
+    .recent-count {
+      font-weight: bold;
+      color: var(--vscode-textLink-foreground);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 28px;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .filter-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--vscode-inputValidation-infoBackground,
+                          rgba(0,120,212,0.15));
+      border: 1px solid var(--vscode-inputValidation-infoBorder,
+                            var(--vscode-textLink-foreground));
+      color: var(--vscode-textLink-foreground);
+      border-radius: 12px;
+      padding: 2px 8px 2px 10px;
+      font-size: 0.78em;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .filter-pill-clear {
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+      opacity: 0.7;
+      border: none;
+      background: none;
+      color: inherit;
+      padding: 0 1px;
+    }
+
+    .filter-pill-clear:hover { opacity: 1; }
+
+    .file-sel-count-badge {
+      font-size: 0.75em;
+      color: var(--vscode-descriptionForeground);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── File selection section ───────────────────────────────────────── */
+    .file-selection-section {
+      margin-bottom: 36px;
+    }
+
+    .file-selection-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding-bottom: 8px;
+    }
+
+    .file-selection-header h2 {
+      margin: 0;
+      color: var(--vscode-textLink-foreground);
+      font-size: 1.2em;
+      flex: 1;
+    }
+
+    .sel-btn {
+      padding: 3px 10px;
+      background-color: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.8em;
+      white-space: nowrap;
+    }
+
+    .sel-btn:hover {
+      background-color: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .open-sel-btn {
+      padding: 4px 12px;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 0.85em;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .open-sel-btn:hover:not(:disabled) {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+
+    .open-sel-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .sel-count-badge {
+      font-size: 0.75em;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .file-sel-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 320px;
+      overflow-y: auto;
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+    }
+
+    .file-sel-item {
+      display: flex;
+      align-items: center;
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      cursor: pointer;
+      gap: 8px;
+      transition: background-color 0.1s;
+    }
+
+    .file-sel-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-sel-item:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .file-sel-item.selected {
+      background-color: var(--vscode-list-activeSelectionBackground);
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .file-sel-item.selected .file-sel-path {
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .file-sel-item input[type=checkbox] {
+      flex-shrink: 0;
+      cursor: pointer;
+      width: 14px;
+      height: 14px;
+    }
+
+    .file-sel-name {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.9em;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .file-sel-path {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.78em;
+      color: var(--vscode-descriptionForeground);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .file-sel-count {
+      font-size: 0.78em;
+      font-weight: 600;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 1px 6px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>File Search Statistics <span class="header-badge">FILES ONLY</span></h1>
+    <div class="query-info">
+      Query: <span id="current-query">Loading…</span>
+    </div>
+  </div>
+
+  <div class="summary-cards">
+    <div class="summary-card">
+      <h3>Files Found</h3>
+      <div class="value" id="total-files">—</div>
+    </div>
+    <div class="summary-card">
+      <h3>Total Matches</h3>
+      <div class="value" id="total-matches">—</div>
+    </div>
+    <div class="summary-card">
+      <h3>Avg Matches / File</h3>
+      <div class="value" id="avg-matches">—</div>
+    </div>
+  </div>
+
+  <!-- File selection -->
+  <div class="file-selection-section">
+    <div class="file-selection-header">
+      <h2 id="file-sel-title">All Matched Files</h2>
+      <span id="filter-pill-container"></span>
+      <span class="file-sel-count-badge" id="file-sel-count-badge"></span>
+      <button class="sel-btn" id="btn-select-all">Select All</button>
+      <button class="sel-btn" id="btn-select-none">Clear</button>
+      <span class="sel-count-badge" id="sel-count">0 selected</span>
+      <button class="open-sel-btn" id="btn-open-selected" disabled>Open Selected Files ↗</button>
+    </div>
+    <ul class="file-sel-list" id="file-sel-list"></ul>
+  </div>
+
+  <div class="stats-section">
+    <h2>File Analysis</h2>
+    <div class="stats-grid">
+      <div class="stats-table full-width">
+        <h3>Top Folders <span style="font-size:0.8em; font-weight:normal; color:var(--vscode-descriptionForeground)">(by match count)</span></h3>
+        <ul class="stats-list" id="top-folders"></ul>
+      </div>
+
+      <div class="stats-table">
+        <h3>Top File Extensions</h3>
+        <ul class="stats-list" id="top-extensions"></ul>
+      </div>
+
+      <div class="stats-table">
+        <h3>Top File Names</h3>
+        <ul class="stats-list" id="top-filenames"></ul>
+      </div>
+
+      <div class="stats-table">
+        <h3>Top File Prefixes</h3>
+        <ul class="stats-list" id="top-prefixes"></ul>
+      </div>
+
+      <div class="stats-table">
+        <h3>Top File Suffixes</h3>
+        <ul class="stats-list" id="top-suffixes"></ul>
+      </div>
+
+      <div class="stats-table full-width">
+        <h3>Recent Modifications <span style="font-size:0.8em; font-weight:normal; color:var(--vscode-descriptionForeground)">(most recently changed files)</span></h3>
+        <ul class="stats-list" id="recent-modifications"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    let allFiles = [];          // full array from extension
+    let activeFilter = null;    // { type, value, display } | null
+    const selectedFiles = new Set(); // selected file paths (persist across filter changes)
+
+    window.addEventListener('message', event => {
+      const message = event.data;
+      if (message.command === 'updateFileStatistics') {
+        allFiles = message.data.allFiles || [];
+        activeFilter = null;
+        selectedFiles.clear();
+        updateStatistics(message.data);
+        renderFileSelList();
+        updateSelCount();
+        updateFilterPill();
+      }
+    });
+
+    // ── Filter helpers ────────────────────────────────────────────────
+    function fileMatchesFilter(f) {
+      if (!activeFilter) { return true; }
+      const { type, value } = activeFilter;
+      const norm = f.file.replace(/\\/g, '/');
+      const base = norm.split('/').pop() || '';
+      const dotIdx = base.lastIndexOf('.');
+      const ext    = dotIdx >= 0 ? base.slice(dotIdx).toLowerCase() : '';
+      const baseNoExt = dotIdx >= 0 ? base.slice(0, dotIdx) : base;
+      const dir    = norm.lastIndexOf('/') >= 0 ? norm.slice(0, norm.lastIndexOf('/')) : '';
+
+      switch (type) {
+        case 'folder':
+          return dir === value.replace(/\\/g, '/');
+        case 'extension':
+          return value === '(no extension)' ? ext === '' : ext === value;
+        case 'fileName':
+          return base === value;
+        case 'prefix':
+          return baseNoExt.toLowerCase().startsWith(value.toLowerCase());
+        case 'suffix':
+          return baseNoExt.toLowerCase().endsWith(value.toLowerCase());
+        case 'recentFile':
+          return base === value;
+        default:
+          return true;
+      }
+    }
+
+    function getFilteredFiles() {
+      return activeFilter ? allFiles.filter(fileMatchesFilter) : allFiles;
+    }
+
+    function setFilter(type, value, display) {
+      // Toggle off if same filter clicked again
+      if (activeFilter && activeFilter.type === type && activeFilter.value === value) {
+        activeFilter = null;
+      } else {
+        activeFilter = { type, value, display };
+      }
+      // Clear active highlight on all stats/recent items first
+      document.querySelectorAll('.stats-item.filter-active, .recent-item.filter-active')
+        .forEach(el => el.classList.remove('filter-active'));
+      // Highlight newly active item
+      if (activeFilter) {
+        document.querySelectorAll(`[data-filter-type="${CSS.escape(type)}"][data-filter-value="${CSS.escape(value)}"]`)
+          .forEach(el => el.classList.add('filter-active'));
+      }
+      updateFilterPill();
+      renderFileSelList();
+    }
+
+    function updateFilterPill() {
+      const container = document.getElementById('filter-pill-container');
+      const title     = document.getElementById('file-sel-title');
+      if (activeFilter) {
+        title.textContent = 'Filtered Files';
+        container.innerHTML = `
+          <span class="filter-pill">
+            ${escapeHtml(categoryLabel(activeFilter.type))}: ${escapeHtml(activeFilter.display)}
+            <button class="filter-pill-clear" title="Clear filter" onclick="clearFilter()">&#x2715;</button>
+          </span>`;
+      } else {
+        title.textContent = 'All Matched Files';
+        container.innerHTML = '';
+      }
+    }
+
+    function clearFilter() {
+      activeFilter = null;
+      document.querySelectorAll('.stats-item.filter-active, .recent-item.filter-active')
+        .forEach(el => el.classList.remove('filter-active'));
+      updateFilterPill();
+      renderFileSelList();
+    }
+
+    function categoryLabel(type) {
+      return { folder:'Folder', extension:'Extension', fileName:'File', prefix:'Prefix', suffix:'Suffix', recentFile:'Recent' }[type] || type;
+    }
+
+    // ── Summary + statistics ─────────────────────────────────────────────
+    function updateStatistics(stats) {
+      document.getElementById('current-query').textContent = stats.query || '';
+      document.getElementById('total-files').textContent = stats.totalFiles.toLocaleString();
+      document.getElementById('total-matches').textContent = stats.totalMatches.toLocaleString();
+      const avg = stats.totalFiles > 0 ? (stats.totalMatches / stats.totalFiles).toFixed(1) : '—';
+      document.getElementById('avg-matches').textContent = avg;
+
+      renderTable('top-folders',   stats.topFolders,        'folder',    'folder');
+      renderTable('top-extensions',stats.topFileExtensions, 'extension', 'extension');
+      renderTable('top-filenames', stats.topFileNames,      'fileName',  'fileName');
+      renderTable('top-prefixes',  stats.topFilePrefixes,   'prefix',    'prefix');
+      renderTable('top-suffixes',  stats.topFileSuffixes,   'suffix',    'suffix');
+      renderRecent('recent-modifications', stats.recentModifications);
+    }
+
+    // ── File selection list ──────────────────────────────────────────────
+    function renderFileSelList() {
+      const list    = document.getElementById('file-sel-list');
+      const badge   = document.getElementById('file-sel-count-badge');
+      const visible = getFilteredFiles();
+
+      badge.textContent = activeFilter
+        ? `${visible.length} of ${allFiles.length} files`
+        : `${allFiles.length} files`;
+
+      if (!visible.length) {
+        list.innerHTML = '<li style="padding:16px;color:var(--vscode-descriptionForeground);font-style:italic;">No matching files.</li>';
+        return;
+      }
+      list.innerHTML = visible.map(f => {
+        const name = basename(f.file);
+        const dir  = dirname(f.file);
+        const chk  = selectedFiles.has(f.file) ? 'checked' : '';
+        const sel  = selectedFiles.has(f.file) ? ' selected' : '';
+        return `
+          <li class="file-sel-item${sel}" data-file="${escapeAttr(f.file)}">
+            <input type="checkbox" ${chk} tabindex="-1" aria-label="${escapeAttr(name)}">
+            <span class="file-sel-name">${escapeHtml(name)}</span>
+            <span class="file-sel-path" title="${escapeAttr(f.file)}">${escapeHtml(dir)}</span>
+            <span class="file-sel-count" title="match count">${f.matchCount}</span>
+          </li>`;
+      }).join('');
+
+      list.querySelectorAll('.file-sel-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const cb = el.querySelector('input[type=checkbox]');
+          const filePath = el.dataset.file;
+          const nowChecked = !selectedFiles.has(filePath);
+          if (nowChecked) { selectedFiles.add(filePath); }
+          else            { selectedFiles.delete(filePath); }
+          cb.checked = nowChecked;
+          el.classList.toggle('selected', nowChecked);
+          updateSelCount();
+        });
+      });
+    }
+
+    function updateSelCount() {
+      const n = selectedFiles.size;
+      document.getElementById('sel-count').textContent = n === 1 ? '1 selected' : `${n} selected`;
+      document.getElementById('btn-open-selected').disabled = n === 0;
+    }
+
+    document.getElementById('btn-select-all').addEventListener('click', () => {
+      // Select only currently visible (filtered) files
+      getFilteredFiles().forEach(f => selectedFiles.add(f.file));
+      renderFileSelList();
+      updateSelCount();
+    });
+
+    document.getElementById('btn-select-none').addEventListener('click', () => {
+      // Deselect only currently visible files
+      getFilteredFiles().forEach(f => selectedFiles.delete(f.file));
+      renderFileSelList();
+      updateSelCount();
+    });
+
+    document.getElementById('btn-open-selected').addEventListener('click', () => {
+      if (selectedFiles.size === 0) { return; }
+      const selected = allFiles.filter(f => selectedFiles.has(f.file));
+      vscode.postMessage({ command: 'openFileList', files: selected });
+    });
+
+    // ── Statistics table renderers ──────────────────────────────────────────
+    function renderTable(elementId, items, keyName, filterType) {
+      const list = document.getElementById(elementId);
+      if (!items || items.length === 0) {
+        list.innerHTML = '<li class="empty-state">No data available</li>';
+        return;
+      }
+      const maxCount = Math.max(...items.map(i => i.count));
+      list.innerHTML = items.map(item => {
+        const rawValue = item[keyName];
+        const display  = keyName === 'folder' ? folderLabel(rawValue) : escapeHtml(rawValue);
+        const barWidth = Math.round((item.count / maxCount) * 100);
+        const isActive = activeFilter && activeFilter.type === filterType && activeFilter.value === rawValue;
+        return `
+          <li class="stats-item${isActive ? ' filter-active' : ''}"
+              data-filter-type="${escapeAttr(filterType)}"
+              data-filter-value="${escapeAttr(rawValue)}"
+              title="Click to filter file list by: ${escapeAttr(rawValue)}">
+            <div class="stats-name">${display}</div>
+            <div class="stats-count">${item.count}</div>
+            <div class="stats-percentage">${item.percentage}%</div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${barWidth}%"></div></div>
+          </li>`;
+      }).join('');
+
+      list.querySelectorAll('.stats-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const type  = el.dataset.filterType;
+          const value = el.dataset.filterValue;
+          const disp  = el.querySelector('.stats-name').textContent.trim();
+          setFilter(type, value, disp);
+        });
+      });
+    }
+
+    function renderRecent(elementId, items) {
+      const list = document.getElementById(elementId);
+      if (!items || items.length === 0) {
+        list.innerHTML = '<li class="empty-state">No modification data available</li>';
+        return;
+      }
+      list.innerHTML = items.map(item => {
+        const isActive = activeFilter && activeFilter.type === 'recentFile' && activeFilter.value === item.file;
+        return `
+          <li class="recent-item${isActive ? ' filter-active' : ''}"
+              data-filter-type="recentFile"
+              data-filter-value="${escapeAttr(item.file)}"
+              title="Click to filter file list by: ${escapeAttr(item.file)}">
+            <div class="recent-file">${escapeHtml(item.file)}</div>
+            <div class="recent-date">${item.modifiedDate}</div>
+            <div class="recent-count">${item.count}</div>
+          </li>`;
+      }).join('');
+
+      list.querySelectorAll('.recent-item').forEach(el => {
+        el.addEventListener('click', () => {
+          const value = el.dataset.filterValue;
+          setFilter('recentFile', value, value);
+        });
+      });
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function folderLabel(folderPath) {
+      const parts = folderPath.replace(/\\/g, '/').split('/');
+      const label = parts[parts.length - 1] || folderPath;
+      return `<span title="${escapeAttr(folderPath)}">${escapeHtml(label)}</span>`;
+    }
+
+    function basename(p) {
+      return p.replace(/\\/g, '/').split('/').pop() || p;
+    }
+
+    function dirname(p) {
+      const norm = p.replace(/\\/g, '/');
+      const idx  = norm.lastIndexOf('/');
+      return idx >= 0 ? norm.substring(0, idx) : '';
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = String(text);
+      return d.innerHTML;
+    }
+
+    function escapeAttr(t) {
+      return String(t).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+  </script>
+</body>
+</html>

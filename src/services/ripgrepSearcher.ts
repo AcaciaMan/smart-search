@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
-import { SearchResult, SearchOptions } from '../types';
+import { SearchResult, SearchOptions, FileResult } from '../types';
 
 export class RipgrepSearcher {
   async search(options: SearchOptions): Promise<SearchResult[]> {
@@ -311,6 +311,86 @@ export class RipgrepSearcher {
       };
       results.push(result);
     }
+  }
+
+  /**
+   * Search for files matching the query, returning each file's path and match count.
+   * Uses ripgrep --count mode: fast, no line-level data.
+   */
+  async searchFilesOnly(options: SearchOptions): Promise<FileResult[]> {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      throw new Error('No workspace folder found');
+    }
+
+    const results: FileResult[] = [];
+    for (const folder of workspaceFolders) {
+      try {
+        const folderResults = await this.searchFilesOnlyInFolder(folder.uri.fsPath, options);
+        results.push(...folderResults);
+      } catch (error) {
+        console.warn(`Error in files-only search in folder ${folder.name}:`, error);
+      }
+    }
+    return results;
+  }
+
+  private async searchFilesOnlyInFolder(folderPath: string, options: SearchOptions): Promise<FileResult[]> {
+    return new Promise((resolve, reject) => {
+      const args: string[] = ['--count', '--no-heading'];
+
+      if (!options.caseSensitive) { args.push('--ignore-case'); }
+      if (options.wholeWord)      { args.push('--word-regexp'); }
+      if (options.useRegex)       { args.push('--regexp'); }
+      else                        { args.push('--fixed-strings'); }
+
+      if (options.includePatterns) {
+        options.includePatterns.forEach(p => args.push('--glob', p));
+      }
+      if (options.excludePatterns) {
+        options.excludePatterns.forEach(p => args.push('--glob', `!${p}`));
+      }
+
+      args.push(options.query, folderPath);
+
+      const rg = spawn('rg', args);
+      const results: FileResult[] = [];
+      let buffer = '';
+
+      rg.stdout.on('data', (data: Buffer) => {
+        buffer += data.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) { continue; }
+          // ripgrep --count output: "filepath:N"
+          const lastColon = line.lastIndexOf(':');
+          if (lastColon > 0) {
+            const file = line.substring(0, lastColon);
+            const count = parseInt(line.substring(lastColon + 1), 10);
+            if (!isNaN(count)) {
+              results.push({ file, matchCount: count });
+            }
+          }
+        }
+      });
+
+      rg.stderr.on('data', (data: Buffer) => {
+        console.error('Ripgrep files-only error:', data.toString());
+      });
+
+      rg.on('close', (code: number | null) => {
+        if (code === 0 || code === 1) {
+          resolve(results);
+        } else {
+          reject(new Error(`Ripgrep exited with code ${code}`));
+        }
+      });
+
+      rg.on('error', (error: Error) => {
+        reject(new Error(`Failed to start ripgrep: ${error.message}`));
+      });
+    });
   }
 
   /**

@@ -1,3 +1,8 @@
+export interface FileResult {
+  file: string;
+  matchCount: number;
+}
+
 export interface SearchResult {
   file: string;
   line: number;

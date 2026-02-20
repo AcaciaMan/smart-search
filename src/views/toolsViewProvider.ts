@@ -8,6 +8,7 @@ export interface ToolsOptions {
   caseSensitive: boolean;
   wholeWord: boolean;
   useRegex: boolean;       // only meaningful in 'live' mode
+  fileStatsMode: boolean;  // live mode: next search returns file-level statistics
 }
 
 /**
@@ -26,8 +27,10 @@ export class ToolsViewProvider implements vscode.WebviewViewProvider {
   private _options: ToolsOptions = {
     caseSensitive: false,
     wholeWord: false,
-    useRegex: false
+    useRegex: false,
+    fileStatsMode: false
   };
+
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -70,7 +73,8 @@ export class ToolsViewProvider implements vscode.WebviewViewProvider {
         this._options = {
           caseSensitive: !!data.options.caseSensitive,
           wholeWord:     !!data.options.wholeWord,
-          useRegex:      !!data.options.useRegex
+          useRegex:      !!data.options.useRegex,
+          fileStatsMode: !!data.options.fileStatsMode
         };
       }
     });

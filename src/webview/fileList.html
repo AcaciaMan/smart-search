@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Selected File List</title>
+  <style>
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: var(--vscode-editorGroupHeader-tabsBackground);
+      border-bottom: 1px solid var(--vscode-panel-border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar h1 {
+      margin: 0;
+      font-size: 1em;
+      font-weight: 600;
+      color: var(--vscode-textLink-foreground);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .badge {
+      font-size: 0.75em;
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .query-pill {
+      font-family: monospace;
+      font-size: 0.85em;
+      background-color: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-panel-border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 7px 16px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      cursor: pointer;
+      gap: 10px;
+      transition: background-color 0.1s;
+    }
+
+    .file-item:last-child {
+      border-bottom: none;
+    }
+
+    .file-item:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .file-item:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+    }
+
+    .file-index {
+      font-size: 0.75em;
+      color: var(--vscode-editorLineNumber-foreground);
+      min-width: 28px;
+      text-align: right;
+      user-select: none;
+    }
+
+    .file-icon {
+      font-size: 0.85em;
+      color: var(--vscode-textLink-foreground);
+      flex-shrink: 0;
+    }
+
+    .file-details {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .file-name {
+      font-weight: 600;
+      font-family: var(--vscode-editor-font-family);
+      font-size: 0.95em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--vscode-textLink-foreground);
+    }
+
+    .file-path {
+      font-size: 0.8em;
+      color: var(--vscode-descriptionForeground);
+      font-family: var(--vscode-editor-font-family);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-count {
+      font-size: 0.8em;
+      font-weight: 600;
+      color: var(--vscode-textLink-foreground);
+      background-color: var(--vscode-badge-background);
+      color: var(--vscode-badge-foreground);
+      padding: 1px 6px;
+      border-radius: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .open-hint {
+      font-size: 0.75em;
+      color: var(--vscode-descriptionForeground);
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .file-item:hover .open-hint {
+      opacity: 1;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--vscode-descriptionForeground);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1 id="title">Selected Files</h1>
+    <span class="badge" id="count-badge">0 files</span>
+    <span class="query-pill" id="query-pill"></span>
+  </div>
+  <ul class="file-list" id="file-list"></ul>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+
+    window.addEventListener('message', event => {
+      const msg = event.data;
+      if (msg.command === 'loadFileList') {
+        renderFileList(msg.files, msg.query);
+      }
+    });
+
+    function renderFileList(files, query) {
+      document.getElementById('title').textContent = 'Selected Files';
+      document.getElementById('count-badge').textContent =
+        files.length === 1 ? '1 file' : `${files.length} files`;
+      document.getElementById('query-pill').textContent = `"${query}"`;
+      document.getElementById('query-pill').title = query;
+
+      const list = document.getElementById('file-list');
+      if (!files || files.length === 0) {
+        list.innerHTML = '<li class="empty">No files selected.</li>';
+        return;
+      }
+
+      list.innerHTML = files.map((f, idx) => {
+        const name   = basename(f.file);
+        const dir    = dirname(f.file);
+        return `
+          <li class="file-item" tabindex="0"
+              data-file="${escapeAttr(f.file)}"
+              title="Click to open: ${escapeAttr(f.file)}">
+            <span class="file-index">${idx + 1}</span>
+            <span class="file-icon">&#128196;</span>
+            <div class="file-details">
+              <div class="file-name">${escapeHtml(name)}</div>
+              <div class="file-path" title="${escapeAttr(dir)}">${escapeHtml(dir)}</div>
+            </div>
+            <span class="file-count" title="Match count">${f.matchCount}</span>
+            <span class="open-hint">Open ↗</span>
+          </li>`;
+      }).join('');
+
+      // Click / keyboard to open
+      list.querySelectorAll('.file-item').forEach(el => {
+        el.addEventListener('click', () => openFile(el.dataset.file));
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openFile(el.dataset.file);
+          }
+        });
+      });
+    }
+
+    function openFile(filePath) {
+      vscode.postMessage({ command: 'openFile', file: filePath, line: 0, column: 0 });
+    }
+
+    function basename(p) {
+      return p.replace(/\\/g, '/').split('/').pop() || p;
+    }
+
+    function dirname(p) {
+      const norm = p.replace(/\\/g, '/');
+      const idx  = norm.lastIndexOf('/');
+      return idx >= 0 ? norm.substring(0, idx) : '';
+    }
+
+    function escapeHtml(t) {
+      const d = document.createElement('div');
+      d.textContent = String(t);
+      return d.innerHTML;
+    }
+
+    function escapeAttr(t) {
+      return String(t).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+  </script>
+</body>
+</html>

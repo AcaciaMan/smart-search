@@ -91,6 +91,39 @@
             font-size: 11px;
         }
 
+        .icon-file-stats {
+            font-size: 10px;
+            font-family: var(--vscode-editor-font-family, monospace);
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        /* ── Action button (click only, no toggle state) ─────────────────── */
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 22px;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            background: none;
+            cursor: pointer;
+            color: var(--vscode-descriptionForeground);
+            transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+            position: relative;
+        }
+
+        .action-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-widget-border);
+            color: var(--vscode-foreground);
+        }
+
+        .action-btn:active {
+            background-color: var(--vscode-inputOption-activeBackground);
+        }
+
         /* ── Divider ─────────────────────────────────────────────────────── */
         .toolbar-sep {
             width: 1px;
@@ -187,6 +220,17 @@
             }
         ];
 
+        // Action buttons only available in live mode
+        const LIVE_ACTION_BUTTONS = [
+            {
+                id: 'fileStatsMode',
+                title: 'File Statistics Search – ripgrep files-only (match count per file) with statistics',
+                iconClass: 'icon-file-stats',
+                iconText: 'F#',
+                label: 'Files'
+            }
+        ];
+
         const SESSION_BUTTONS = [
             {
                 id: 'caseSensitive',
@@ -211,7 +255,8 @@
         const state = {
             caseSensitive: restoreState.caseSensitive || false,
             wholeWord:     restoreState.wholeWord     || false,
-            useRegex:      restoreState.useRegex      || false
+            useRegex:      restoreState.useRegex      || false,
+            fileStatsMode: restoreState.fileStatsMode || false
         };
 
         // ── Build toolbar ─────────────────────────────────────────────────
@@ -236,6 +281,38 @@
             labelsRow.appendChild(cell);
         });
 
+        // ── Action buttons (Live mode only) — participate in toggle state ─
+        if (mode === 'live' && LIVE_ACTION_BUTTONS.length > 0) {
+            // Add a separator before action buttons
+            const sep = document.createElement('div');
+            sep.className = 'toolbar-sep';
+            toolbar.appendChild(sep);
+            // Matching spacer in labels row
+            const sepSpacer = document.createElement('div');
+            sepSpacer.style.width = '9px';
+            sepSpacer.style.flexShrink = '0';
+            labelsRow.appendChild(sepSpacer);
+
+            LIVE_ACTION_BUTTONS.forEach(btn => {
+                // Reuse toggle-btn so it looks like the other toggles
+                const el = document.createElement('button');
+                el.className = 'toggle-btn' + (state[btn.id] ? ' active' : '');
+                el.id = 'btn_' + btn.id;
+                el.title = btn.title;
+                el.setAttribute('aria-pressed', String(!!state[btn.id]));
+                el.innerHTML = `<span class="${btn.iconClass}">${btn.iconText}</span>`;
+                // Reuse the existing toggleOption so state is persisted + shared
+                el.addEventListener('click', () => toggleOption(btn.id, el));
+                toolbar.appendChild(el);
+
+                // Label cell
+                const cell = document.createElement('div');
+                cell.className = 'btn-label-cell';
+                cell.innerHTML = `<span class="btn-label">${btn.label}</span>`;
+                labelsRow.appendChild(cell);
+            });
+        }
+
         // ── Toggle logic ──────────────────────────────────────────────────
         function toggleOption(id, el) {
             state[id] = !state[id];
@@ -256,6 +333,7 @@
             if (state.caseSensitive) { parts.push('Case'); }
             if (state.wholeWord)     { parts.push('Word'); }
             if (state.useRegex)      { parts.push('.*'); }
+            if (state.fileStatsMode) { parts.push('F#'); }
 
             if (parts.length === 0) {
                 summary.textContent = 'No filters active';
@@ -271,7 +349,8 @@
             const msg = event.data;
             if (msg.type === 'setOptions') {
                 Object.assign(state, msg.options);
-                buttons.forEach(btn => {
+                // Update all toggle buttons (regular + action)
+                [...buttons, ...(mode === 'live' ? LIVE_ACTION_BUTTONS : [])].forEach(btn => {
                     const el = document.getElementById('btn_' + btn.id);
                     if (el) {
                         el.classList.toggle('active', !!state[btn.id]);

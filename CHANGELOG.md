@@ -2,6 +2,21 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.0.1] - 2026-02-20
+
+### Added
+- **File Statistics Search mode** (`F#` toggle in Live Tools) — when active, the next Live Search runs a files-only ripgrep pass (`rg --count`) and opens a **File Search Statistics** panel instead of the standard results panel. The panel displays:
+  - Summary cards: total files, total matches, average matches per file
+  - Six analytics sections: Top Folders, Top File Extensions, Top File Names, Top Prefixes, Top Suffixes, Recent Modifications
+- **Filter-by-analytics** — clicking any row in the six analytics sections instantly filters the *All Matched Files* list to show only matching files. An active filter is highlighted in the analytics row and displayed as a dismissible pill in the file list header. Clicking the same row again clears the filter.
+- **File selection & File List panel** — the *All Matched Files* section supports per-file checkboxes, Select All (respects current filter), Clear, and an *Open Selected Files ↗* button that opens a dedicated **File List** editor tab. Each row in the File List is clickable and opens the file directly in the editor.
+
+### Changed
+- *Select All* in the file selection section now selects only the currently visible (filtered) files, not the entire result set
+- *Clear* deselects only the currently visible files; selections outside the current filter are preserved
+
+---
+
 ## [2.0.0] - 2026-02-19
 
 ### Added

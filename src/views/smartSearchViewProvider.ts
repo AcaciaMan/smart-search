@@ -6,6 +6,8 @@ import { IndexManager } from '../services';
 import { SearchResult, SearchOptions } from '../types';
 import { RipgrepResultsPanel } from '../panels/ripgrepResultsPanel';
 import { SolrResultsPanel } from '../panels/solrResultsPanel';
+import { FileStatisticsPanel } from '../panels/fileStatisticsPanel';
+import { RipgrepSearcher } from '../services/ripgrepSearcher';
 import { RecentSearchViewProvider } from './recentSearchViewProvider';
 import { ToolsViewProvider } from './toolsViewProvider';
 
@@ -14,6 +16,8 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private searchProvider: SmartSearchProvider;
   private latestSessionId?: string; // Track the latest search session
+  private _currentQuery: string = ''; // Track the current/last search query
+  private ripgrepSearcher = new RipgrepSearcher();
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -72,6 +76,11 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
 
   // ─── Public API called from extension.ts (cross-panel) ─────────────────────
 
+  /** Returns the last query text entered in the search bar (empty string if none yet) */
+  public getQuery(): string {
+    return this._currentQuery;
+  }
+
   /** Fill the search input in this view (called when user clicks a history item) */
   public setQuery(query: string) {
     if (this._view) {
@@ -122,6 +131,9 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
+    // Track the latest query
+    this._currentQuery = query;
+
     // Show loading state in sidebar
     this._view.webview.postMessage({
       type: 'searchStarted',
@@ -149,6 +161,32 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
 
         // Read live-search toggle options from the Live Tools sidebar view
         const liveOpts = this.liveToolsProvider?.getOptions();
+
+        // ── File Statistics Mode ────────────────────────────────────────────
+        // When the F# toggle is active, run a files-only ripgrep search and
+        // open the File Search Statistics panel instead of the normal results.
+        if (liveOpts?.fileStatsMode) {
+          const fileSearchOptions = {
+            query,
+            caseSensitive: liveOpts.caseSensitive,
+            wholeWord:     liveOpts.wholeWord,
+            useRegex:      liveOpts.useRegex
+          };
+          const fileResults = await this.ripgrepSearcher.searchFilesOnly(fileSearchOptions);
+
+          let statsPanel = FileStatisticsPanel.currentPanel;
+          if (!statsPanel) {
+            statsPanel = FileStatisticsPanel.create(this._extensionUri);
+          }
+          statsPanel.show(fileResults, query);
+
+          this._view!.webview.postMessage({
+            type: 'searchComplete',
+            resultCount: fileResults.length,
+            query
+          });
+          return;
+        }
 
         // Merge: persisted panel settings win, then Live Tools toggles
         effectiveSearchOptions = {
