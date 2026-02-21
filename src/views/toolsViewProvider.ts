@@ -9,6 +9,10 @@ export interface ToolsOptions {
   wholeWord: boolean;
   useRegex: boolean;       // only meaningful in 'live' mode
   fileStatsMode: boolean;  // live mode: next search returns file-level statistics
+  // ripgrep context line flags (live mode only; 0 = use default)
+  contextLines: number;       // -C flag: lines before AND after
+  contextLinesBefore: number; // -B flag: lines before (overrides contextLines for before)
+  contextLinesAfter: number;  // -A flag: lines after  (overrides contextLines for after)
 }
 
 /**
@@ -28,7 +32,10 @@ export class ToolsViewProvider implements vscode.WebviewViewProvider {
     caseSensitive: false,
     wholeWord: false,
     useRegex: false,
-    fileStatsMode: false
+    fileStatsMode: false,
+    contextLines: 0,
+    contextLinesBefore: 10,
+    contextLinesAfter: 10
   };
 
 
@@ -74,7 +81,10 @@ export class ToolsViewProvider implements vscode.WebviewViewProvider {
           caseSensitive: !!data.options.caseSensitive,
           wholeWord:     !!data.options.wholeWord,
           useRegex:      !!data.options.useRegex,
-          fileStatsMode: !!data.options.fileStatsMode
+          fileStatsMode: !!data.options.fileStatsMode,
+          contextLines:       Number(data.options.contextLines)       || 0,
+          contextLinesBefore: Number(data.options.contextLinesBefore) || 0,
+          contextLinesAfter:  Number(data.options.contextLinesAfter)  || 0
         };
       }
     });

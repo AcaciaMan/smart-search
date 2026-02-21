@@ -5,23 +5,25 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
-## What's New in v2.0.0
+## What's New in v2.0.2
 
-v2.0.0 reorganizes the Smart Search activity bar into **four dedicated sidebar panels**, making every control visible at a glance without cluttering the main search box.
+v2.0.2 adds a **Health Check** panel so you can diagnose configuration issues at a glance.
 
 | Panel | Purpose |
-|-------|---------|
+|-------|---------||
 | 🔍 **Search** | Query input and Live / Session mode switcher |
 | ⚙️ **Live Tools** | Case, Whole Word, Regex toggles for ripgrep searches |
 | 🗄️ **Session Tools** | Case, Whole Word toggles for Solr / Session searches |
 | 🕐 **Recent Searches** | Full history + stored sessions in one place |
+| 🩺 **Health Check** | Live diagnostic panel — ripgrep & Solr status, Solr index stats, fix suggestions |
 
 See the [Changelog](CHANGELOG.md) for the complete list of changes.
 
 
 ## Features
 
-- **Reorganized Sidebar UI**: Four dedicated panels – Search, Live Tools, Session Tools, Recent Searches
+- **Reorganized Sidebar UI**: Five dedicated panels – Search, Live Tools, Session Tools, Recent Searches, Health Check
+- **Health Check panel**: Instant diagnostic view showing ripgrep availability, Solr connectivity, index statistics, and actionable fix suggestions
 - **Dual Search Modes**: Live Search (workspace files via ripgrep) and Session Search (stored Solr results)
 - **Icon Toggle Toolbars**: Case Sensitive, Whole Word, and Regex controls live in compact icon toolbars in their own sidebar panels, keeping the main search view clean
 - **Recent Searches Panel**: Tabbed view showing clickable search history and stored sessions; clicking a history item fills the search box; clicking a session switches to Session mode automatically
@@ -97,6 +99,14 @@ Tabbed panel with two views:
 
 - **Recent tab** – Full search history. Click any item to load the query into the main search input and bring the Search panel into focus.
 - **Sessions tab** – All stored sessions with timestamp and result count. Click a row to select it as the target for Session Search; use the **Search** action button to immediately switch the main view to Session mode for that session.
+
+#### 🩺 Health Check
+Live diagnostic panel that checks all external dependencies:
+
+- **Ripgrep status** — detected version, resolved path, or install instructions if not found
+- **Solr status** — connectivity, core presence, and live index statistics (document count, deleted docs, index size, last-modified)
+- **Actionable suggestions** — OS-specific install commands, Solr start commands, core creation steps, and inline links to open relevant VS Code settings
+- Use the **↻ Refresh** button to re-run checks at any time
 
 ### Basic Search
 - Press `Ctrl+Shift+F` (or `Cmd+Shift+F` on Mac) to open Smart Search
@@ -235,6 +245,7 @@ All search settings are automatically persisted and will be applied to new searc
 The extension can be configured through VS Code settings:
 
 - `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
+- `smart-search.ripgrepPath`: Optional absolute path to a custom `rg` executable; leave empty to use `rg` from the system PATH (default: "")
 - `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
 - `smart-search.maxFiles`: Maximum number of files to return results from (default: 100)
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")

@@ -2,6 +2,21 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.0.2] - 2026-02-21
+
+### Added
+- **Health Check sidebar view** (`$(pulse)` icon in the Smart Search activity bar) — a live diagnostic panel that checks the status of all external services and configuration at a glance:
+  - **Ripgrep check**: detects whether `rg` is available on the system PATH (or a custom path), reports the installed version, and suggests OS-specific install commands when not found
+  - **Solr check**: connects to the configured Solr URL, checks whether the `smart-search-results` core exists, and reports live index statistics:
+    - Document count, deleted document count, and index size (human-readable)
+    - Last-modified timestamp of the index
+  - **Actionable suggestions**: context-aware tips shown for each failed check — install commands for ripgrep (`winget`, `choco`, `brew`, `cargo`), Solr start commands, core creation instructions, and a link to optimize the index when deleted-doc ratio is high
+  - **Open Settings** inline links that jump directly to `smart-search.solrUrl` or `smart-search.ripgrepPath` in VS Code settings
+  - **↻ Refresh** button to re-run checks on demand; spinner shown while checks are in progress
+- **`smart-search.ripgrepPath` setting** — optional absolute path to a custom ripgrep executable; leave empty to use `rg` from the system PATH
+
+---
+
 ## [2.0.1] - 2026-02-20
 
 ### Added

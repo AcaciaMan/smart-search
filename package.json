@@ -23,7 +23,7 @@
     "find",
     "discover"
   ],
-  "version": "2.0.1",
+  "version": "2.0.2",
   "publisher": "manacacia",
   "icon": "icon.png",
   "repository": {
@@ -45,7 +45,8 @@
     "onView:smartSearch.searchView",
     "onView:smartSearch.liveTools",
     "onView:smartSearch.sessionTools",
-    "onView:smartSearch.recentSearchView"
+    "onView:smartSearch.recentSearchView",
+    "onView:smartSearch.configCheck"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -101,6 +102,12 @@
           "name": "Recent Searches",
           "type": "webview",
           "icon": "$(history)"
+        },
+        {
+          "id": "smartSearch.configCheck",
+          "name": "Health Check",
+          "type": "webview",
+          "icon": "$(pulse)"
         }
       ]
     },
@@ -145,6 +152,11 @@
           "type": "boolean",
           "default": false,
           "description": "Enable debug logging for multi-folder search operations"
+        },
+        "smart-search.ripgrepPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: full path to a custom ripgrep executable. Leave empty to use 'rg' from your system PATH."
         }
       }
     }

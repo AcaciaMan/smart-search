@@ -189,11 +189,19 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         }
 
         // Merge: persisted panel settings win, then Live Tools toggles
+        // Live Tools context lines: -B/-A override -C for their respective direction; 0 = use default
+        const liveCtxBefore = (liveOpts?.contextLinesBefore || 0) > 0
+          ? liveOpts!.contextLinesBefore
+          : (liveOpts?.contextLines || 0) > 0 ? liveOpts!.contextLines : 0;
+        const liveCtxAfter = (liveOpts?.contextLinesAfter || 0) > 0
+          ? liveOpts!.contextLinesAfter
+          : (liveOpts?.contextLines || 0) > 0 ? liveOpts!.contextLines : 0;
+
         effectiveSearchOptions = {
           query,
           maxFiles: persistedSettings?.maxFiles || options.maxFiles || 100,
-          contextLinesBefore: persistedSettings?.contextLinesBefore || options.contextLinesBefore || 30,
-          contextLinesAfter: persistedSettings?.contextLinesAfter || options.contextLinesAfter || 30,
+          contextLinesBefore: persistedSettings?.contextLinesBefore || liveCtxBefore || options.contextLinesBefore || 10,
+          contextLinesAfter: persistedSettings?.contextLinesAfter || liveCtxAfter || options.contextLinesAfter || 10,
           includePatterns: persistedSettings?.includePatterns || options.includePatterns,
           excludePatterns: persistedSettings?.excludePatterns || options.excludePatterns,
           caseSensitive: persistedSettings?.caseSensitive ?? liveOpts?.caseSensitive ?? false,

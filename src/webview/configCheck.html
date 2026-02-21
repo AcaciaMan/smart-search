@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Search Health</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      color: var(--vscode-foreground);
+      background-color: var(--vscode-sideBar-background);
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px 6px;
+      border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.2));
+    }
+
+    .header-title {
+      font-size: 0.72em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+      opacity: 0.8;
+    }
+
+    .refresh-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 3px;
+      background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.15));
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      font-size: 0.8em;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .refresh-btn:hover {
+      background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.25));
+    }
+
+    .refresh-btn.spinning .icon-refresh {
+      display: inline-block;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* ── Checking overlay ────────────────────────────────────────────────── */
+    #checking {
+      padding: 16px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 0.88em;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--vscode-descriptionForeground);
+      border-top-color: var(--vscode-button-background, #007acc);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Results container ───────────────────────────────────────────────── */
+    #results {
+      display: none;
+    }
+
+    /* ── Section card ────────────────────────────────────────────────────── */
+    .section {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.12));
+    }
+
+    .section:last-child {
+      border-bottom: none;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+
+    .status-icon {
+      width: 16px;
+      height: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .status-ok   { color: var(--vscode-testing-iconPassed, #4caf50); }
+    .status-err  { color: var(--vscode-errorForeground, #f44747); }
+    .status-warn { color: var(--vscode-editorWarning-foreground, #cca700); }
+
+    .service-name {
+      font-weight: 600;
+      font-size: 0.9em;
+    }
+
+    .badge {
+      margin-left: auto;
+      font-size: 0.72em;
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-ok  {
+      background: rgba(var(--vscode-testing-iconPassed-rgb, 76, 175, 80), 0.15);
+      color: var(--vscode-testing-iconPassed, #4caf50);
+      border: 1px solid var(--vscode-testing-iconPassed, #4caf50);
+    }
+
+    .badge-err {
+      background: rgba(244, 71, 71, 0.12);
+      color: var(--vscode-errorForeground, #f44747);
+      border: 1px solid var(--vscode-errorForeground, #f44747);
+    }
+
+    .badge-warn {
+      background: rgba(204, 167, 0, 0.12);
+      color: var(--vscode-editorWarning-foreground, #cca700);
+      border: 1px solid var(--vscode-editorWarning-foreground, #cca700);
+    }
+
+    /* ── Detail rows ─────────────────────────────────────────────────────── */
+    .detail-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 8px;
+      font-size: 0.82em;
+      padding: 2px 2px 4px;
+    }
+
+    .detail-label {
+      color: var(--vscode-descriptionForeground);
+      white-space: nowrap;
+    }
+
+    .detail-value {
+      color: var(--vscode-foreground);
+      word-break: break-all;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 0.95em;
+    }
+
+    /* ── Stat cards ──────────────────────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .stat-card {
+      flex: 1;
+      min-width: 60px;
+      padding: 5px 8px;
+      background: var(--vscode-editor-inactiveSelectionBackground, rgba(128,128,128,0.1));
+      border-radius: 4px;
+      border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.15));
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.1em;
+      font-weight: 700;
+      color: var(--vscode-foreground);
+      display: block;
+    }
+
+    .stat-label {
+      font-size: 0.7em;
+      color: var(--vscode-descriptionForeground);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* ── Suggestions ──────────────────────────────────────────────────────── */
+    .suggestions {
+      margin-top: 6px;
+    }
+
+    .suggestion {
+      display: flex;
+      gap: 6px;
+      padding: 5px 7px;
+      border-radius: 4px;
+      background: rgba(204, 167, 0, 0.08);
+      border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700);
+      margin-bottom: 4px;
+      font-size: 0.82em;
+      line-height: 1.45;
+    }
+
+    .suggestion-icon {
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .suggestion-text {
+      color: var(--vscode-foreground);
+    }
+
+    .suggestion code {
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 0.92em;
+      background: rgba(128,128,128,0.15);
+      padding: 0 4px;
+      border-radius: 2px;
+    }
+
+    .open-settings-link {
+      color: var(--vscode-textLink-foreground, #3794ff);
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 0.82em;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .open-settings-link:hover {
+      color: var(--vscode-textLink-activeForeground, #3794ff);
+    }
+
+    /* ── Timestamp footer ────────────────────────────────────────────────── */
+    .timestamp {
+      padding: 5px 10px 8px;
+      font-size: 0.75em;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <span class="header-title">Smart Search Health</span>
+    <button class="refresh-btn" id="refreshBtn">
+      <span class="icon-refresh">↻</span> Refresh
+    </button>
+  </div>
+
+  <!-- Checking indicator -->
+  <div id="checking" style="display:none">
+    <div class="spinner"></div>
+    <span>Checking services…</span>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- ── Ripgrep section ── -->
+    <div class="section" id="rg-section">
+      <div class="section-header">
+        <span class="status-icon" id="rg-icon">○</span>
+        <span class="service-name">Ripgrep</span>
+        <span class="badge" id="rg-badge">—</span>
+      </div>
+      <div class="detail-grid" id="rg-details"></div>
+      <div class="suggestions" id="rg-suggestions"></div>
+    </div>
+
+    <!-- ── Solr section ── -->
+    <div class="section" id="solr-section">
+      <div class="section-header">
+        <span class="status-icon" id="solr-icon">○</span>
+        <span class="service-name">Solr</span>
+        <span class="badge" id="solr-badge">—</span>
+      </div>
+      <div class="detail-grid" id="solr-details"></div>
+      <div id="solr-stats"></div>
+      <div class="suggestions" id="solr-suggestions"></div>
+    </div>
+
+    <div class="timestamp">Last checked: <span id="timestamp">—</span></div>
+  </div>
+
+  <script>
+    /* jshint esversion: 6 */
+    const vscode = acquireVsCodeApi();
+
+    // ── DOM refs ────────────────────────────────────────────────────────────
+    const checkingEl  = document.getElementById('checking');
+    const resultsEl   = document.getElementById('results');
+    const refreshBtn  = document.getElementById('refreshBtn');
+    const timestampEl = document.getElementById('timestamp');
+
+    // Ripgrep
+    const rgIcon       = document.getElementById('rg-icon');
+    const rgBadge      = document.getElementById('rg-badge');
+    const rgDetails    = document.getElementById('rg-details');
+    const rgSuggestions = document.getElementById('rg-suggestions');
+
+    // Solr
+    const solrIcon        = document.getElementById('solr-icon');
+    const solrBadge       = document.getElementById('solr-badge');
+    const solrDetails     = document.getElementById('solr-details');
+    const solrStats       = document.getElementById('solr-stats');
+    const solrSuggestions = document.getElementById('solr-suggestions');
+
+    // ── Refresh button ──────────────────────────────────────────────────────
+    refreshBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'refresh' });
+    });
+
+    // ── Message listener ────────────────────────────────────────────────────
+    window.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg.type === 'checking') {
+        showChecking();
+      } else if (msg.type === 'results') {
+        showResults(msg.data);
+      }
+    });
+
+    function showChecking() {
+      checkingEl.style.display = 'flex';
+      resultsEl.style.display  = 'none';
+      refreshBtn.classList.add('spinning');
+    }
+
+    function hideChecking() {
+      checkingEl.style.display = 'none';
+      resultsEl.style.display  = 'block';
+      refreshBtn.classList.remove('spinning');
+    }
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    function showResults(data) {
+      hideChecking();
+      timestampEl.textContent = data.timestamp;
+      renderRipgrep(data.ripgrep);
+      renderSolr(data.solr);
+    }
+
+    /* ---- Ripgrep --------------------------------------------------------- */
+    function renderRipgrep(rg) {
+      // Clear
+      rgDetails.innerHTML    = '';
+      rgSuggestions.innerHTML = '';
+
+      if (rg.available) {
+        setStatus(rgIcon, rgBadge, 'ok', '✔', 'Available');
+
+        addDetail(rgDetails, 'Version', rg.version || '—');
+        if (rg.resolvedPath) {
+          addDetail(rgDetails, 'Path', rg.resolvedPath);
+        } else {
+          addDetail(rgDetails, 'Source', 'System PATH');
+        }
+      } else {
+        setStatus(rgIcon, rgBadge, 'err', '✘', 'Not Found');
+        if (rg.error) {
+          addDetail(rgDetails, 'Error', rg.error);
+        }
+
+        const s = document.createElement('div');
+        s.innerHTML = [
+          suggestion('⚠', 'Ripgrep is not available in your system PATH. Live search will not work.'),
+          suggestion('💡',
+            'Install ripgrep:<br>' +
+            '&nbsp;&nbsp;Windows: <code>winget install BurntSushi.ripgrep.MSVC</code> or <code>choco install ripgrep</code><br>' +
+            '&nbsp;&nbsp;macOS: <code>brew install ripgrep</code><br>' +
+            '&nbsp;&nbsp;Linux: <code>sudo apt install ripgrep</code> or <code>cargo install ripgrep</code>'),
+          suggestion('🔧',
+            'Or set a custom path in VS Code settings: <code>smart-search.ripgrepPath</code> ' +
+            '— <button class="open-settings-link" data-cmd="openRgSettings">Open Settings</button>')
+        ].join('');
+        rgSuggestions.appendChild(s);
+        rgSuggestions.querySelector('[data-cmd="openRgSettings"]')?.addEventListener('click', () => {
+          vscode.postMessage({ type: 'openSettings', key: 'smart-search.ripgrepPath' });
+        });
+      }
+    }
+
+    /* ---- Solr ------------------------------------------------------------ */
+    function renderSolr(solr) {
+      solrDetails.innerHTML     = '';
+      solrStats.innerHTML       = '';
+      solrSuggestions.innerHTML = '';
+
+      addDetail(solrDetails, 'URL', solr.url);
+
+      if (!solr.available) {
+        setStatus(solrIcon, solrBadge, 'err', '✘', 'Offline');
+        if (solr.error) {
+          addDetail(solrDetails, 'Error', solr.error);
+        }
+
+        const s = document.createElement('div');
+        s.innerHTML = [
+          suggestion('⚠', 'Solr service is not reachable. Session search (secondary search within results) will not work.'),
+          suggestion('💡',
+            'Start Solr:<br>' +
+            '&nbsp;&nbsp;Navigate to your Solr installation directory and run:<br>' +
+            '&nbsp;&nbsp;<code>bin\\solr start</code> (Windows)&nbsp;&nbsp;or&nbsp;&nbsp;<code>bin/solr start</code> (macOS/Linux)'),
+          suggestion('💡',
+            'Make sure the <code>smart-search-results</code> core exists. ' +
+            'See the <code>solr/</code> folder in this extension for configuration files.'),
+          suggestion('🔧',
+            'Wrong URL? Update it in settings: <code>smart-search.solrUrl</code> ' +
+            '— <button class="open-settings-link" data-cmd="openSolrSettings">Open Settings</button>')
+        ].join('');
+        solrSuggestions.appendChild(s);
+        solrSuggestions.querySelector('[data-cmd="openSolrSettings"]')?.addEventListener('click', () => {
+          vscode.postMessage({ type: 'openSettings', key: 'smart-search.solrUrl' });
+        });
+        return;
+      }
+
+      if (!solr.coreFound) {
+        setStatus(solrIcon, solrBadge, 'warn', '⚠', 'No Core');
+        addDetail(solrDetails, 'Status', solr.error || 'Core not found');
+
+        const s = document.createElement('div');
+        s.innerHTML = [
+          suggestion('⚠', 'Solr is running but the <code>smart-search-results</code> core does not exist.'),
+          suggestion('💡',
+            'Create the core from the <code>solr/</code> folder:<br>' +
+            '&nbsp;&nbsp;<code>bin\\solr create -c smart-search-results</code><br>' +
+            'Then copy the schema and solrconfig from <code>solr/smart-search-results/conf/</code>.')
+        ].join('');
+        solrSuggestions.appendChild(s);
+        return;
+      }
+
+      // Success — Solr is up and core found
+      setStatus(solrIcon, solrBadge, 'ok', '✔', 'Online');
+
+      const st = solr.stats;
+      addDetail(solrDetails, 'Core', 'smart-search-results');
+
+      if (st) {
+        if (st.lastModified) {
+          addDetail(solrDetails, 'Last Modified', formatDate(st.lastModified));
+        }
+
+        // Stat cards
+        const row = document.createElement('div');
+        row.className = 'stats-row';
+        row.innerHTML =
+          statCard(formatNumber(st.docCount),        'Documents') +
+          statCard(st.indexSizeHuman,                'Index Size') +
+          statCard(formatNumber(st.deletedDocCount), 'Deleted');
+        solrStats.appendChild(row);
+
+        if (st.deletedDocCount > 0 && st.docCount > 0 && st.deletedDocCount / st.docCount > 0.2) {
+          const s = document.createElement('div');
+          s.innerHTML = suggestion('💡',
+            'There are many deleted documents in the index (' + st.deletedDocCount + '). ' +
+            'Run an optimize to reclaim space: <code>POST ' + solr.url + '/smart-search-results/update?optimize=true</code>');
+          solrSuggestions.appendChild(s);
+        }
+      }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function setStatus(iconEl, badgeEl, kind, icon, label) {
+      iconEl.textContent = icon;
+      iconEl.className   = 'status-icon status-' + kind;
+      badgeEl.textContent = label;
+      badgeEl.className   = 'badge badge-' + kind;
+    }
+
+    function addDetail(container, label, value) {
+      const lbl = document.createElement('span');
+      lbl.className   = 'detail-label';
+      lbl.textContent = label;
+
+      const val = document.createElement('span');
+      val.className   = 'detail-value';
+      val.textContent = value;
+
+      container.appendChild(lbl);
+      container.appendChild(val);
+    }
+
+    function suggestion(icon, html) {
+      return `<div class="suggestion">
+        <span class="suggestion-icon">${icon}</span>
+        <span class="suggestion-text">${html}</span>
+      </div>`;
+    }
+
+    function statCard(value, label) {
+      return `<div class="stat-card">
+        <span class="stat-value">${value}</span>
+        <span class="stat-label">${label}</span>
+      </div>`;
+    }
+
+    function formatNumber(n) {
+      return (n ?? 0).toLocaleString();
+    }
+
+    function formatDate(iso) {
+      try {
+        return new Date(iso).toLocaleString();
+      } catch {
+        return iso;
+      }
+    }
+
+    // Trigger initial load
+    showChecking();
+  </script>
+</body>
+</html>

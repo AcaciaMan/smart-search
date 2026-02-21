@@ -6,6 +6,7 @@ import { SolrResultsPanel } from './panels/solrResultsPanel';
 import { SmartSearchViewProvider } from './views/smartSearchViewProvider';
 import { RecentSearchViewProvider } from './views/recentSearchViewProvider';
 import { ToolsViewProvider } from './views/toolsViewProvider';
+import { ConfigCheckViewProvider } from './views/configCheckViewProvider';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Smart Search extension is now active!');
@@ -37,6 +38,16 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerWebviewViewProvider(
       RecentSearchViewProvider.viewType,
       recentSearchViewProvider
+    )
+  );
+
+  // ── Register the Health Check sidebar view ─────────────────────────────────
+  const configCheckViewProvider = new ConfigCheckViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      ConfigCheckViewProvider.viewType,
+      configCheckViewProvider,
+      { webviewOptions: { retainContextWhenHidden: true } }
     )
   );
 
