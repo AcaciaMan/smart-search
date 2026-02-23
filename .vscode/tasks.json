@@ -25,6 +25,17 @@
       "script": "test",
       "problemMatcher": "$tsc",
       "group": "test"
+    },
+    {
+      "label": "compile-tests",
+      "type": "npm",
+      "script": "compile-tests",
+      "problemMatcher": "$tsc",
+      "group": "build",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      }
     }
   ]
 }

@@ -1,4 +1,12 @@
-# Protected words for Solr
+# Protected words for Solr — currently NOT referenced in any analyzer chain.
+#
+# protwords.txt only takes effect when used with a stemming filter
+# (e.g. PorterStemFilterFactory + KeywordMarkerFilterFactory). This schema
+# intentionally has NO stemming because code search needs exact tokens.
+#
+# This file is kept for future use: if stemming is ever added, these words
+# will be preserved from modification.
+#
 # These words will not be stemmed or modified by filters
 # Useful for preserving important technical terms
 

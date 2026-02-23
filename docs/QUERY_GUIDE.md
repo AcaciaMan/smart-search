@@ -1,6 +1,21 @@
 # Smart Search Query Guide
 
-This guide covers the enhanced query syntax available in Smart Search, supporting both simple searches and advanced Solr field-specific queries.
+This guide covers the query syntax available in Smart Search for Session Search (Solr). For basic Live Search (ripgrep), just type your text — no special syntax is needed.
+
+## Table of Contents
+
+- [Query Types](#query-types)
+- [Smart Query Routing](#smart-query-routing)
+- [Available Fields](#available-fields)
+- [Query Syntax](#query-syntax)
+- [Range Queries](#range-queries)
+- [Wildcard Queries](#wildcard-queries)
+- [Special Character Handling](#special-character-handling)
+- [Relevance Scoring & Boosts](#relevance-scoring--boosts)
+- [Examples by Use Case](#examples-by-use-case)
+- [Configuration](#configuration)
+
+---
 
 ## Query Types
 
@@ -11,120 +26,263 @@ Simple queries search across configured default fields automatically. No special
 ```text
 function                    # Search for "function" in default fields
 "exact phrase search"       # Search for exact phrase
-test AND bug               # Boolean AND search  
+test AND bug               # Boolean AND search
 error OR exception         # Boolean OR search
 NOT deprecated             # Boolean NOT search
 ```
 
-**Default Fields**: `content_all`, `code_all` (configurable via `smart-search.defaultSolrFields`)
+**Default fields**: `content_all`, `code_all` (configurable via `smart-search.defaultSolrFields`)
 
-### Advanced Field-Specific Queries
+### Field-Specific Queries (Advanced)
 
-Power users can specify exact Solr fields to search in using `field:value` syntax.
+Use `field:value` syntax to target a specific Solr field:
+
+```text
+file_name:*.js                    # JavaScript files
+match_text:async                  # "async" in match text only
+relevance_score:[50 TO *]         # High relevance results
+file_path:src/services/*          # Files in services directory
+```
+
+---
+
+## Smart Query Routing
+
+The query builder automatically routes your query to the most appropriate fields based on its content:
+
+| Query Pattern | Detection | Routed To | Example |
+|---------------|-----------|-----------|---------|
+| Empty query | No input | `*:*` (match all) | *(empty)* |
+| Field-specific | Contains `field:value` | Passed through as-is | `file_name:test.ts` |
+| Filename-like | Ends with `.ts`, `.js`, `.py`, etc. | `file_name`, `file_path` | `Component.tsx` |
+| Code pattern | Contains `()`, `{}`, `=>`, keywords like `function`, `class`, `import` | `code_all^1.5`, `content_all^1.0` | `async function` |
+| Default text | Everything else | Configured default fields with OR | `search term` |
+
+**How it works**: When you type a simple query without field prefixes, the builder inspects the text for patterns. A query like `test.ts` is recognized as a filename and routed to `file_name` and `file_path`. A query like `function()` is recognized as code and routed to `code_all` (with 1.5x boost) and `content_all`.
+
+---
 
 ## Available Fields
+
+All fields below are defined in the Solr schema (`managed-schema`). Only indexed fields can be queried.
 
 ### Content Fields
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `content_all` | text | All searchable content | `content_all:function` |
-| `code_all` | text | Code-optimized content | `code_all:async` |
-| `match_text` | text | Exact match text | `match_text:"function test"` |
-| `full_line` | text | Complete line content | `full_line:import` |
-| `ai_summary` | text | AI-generated summaries | `ai_summary:"bug fix"` |
-| `display_content` | text | Formatted display content | `display_content:error` |
+| `content_all` | text_general | Combined searchable content (copy field target) | `content_all:function` |
+| `code_all` | text_code | Code-optimized combined field (copy field target) | `code_all:async` |
+| `match_text` | text_general | The matched text content | `match_text:"function test"` |
+| `full_line` | text_code | Complete line containing the match | `full_line:import` |
+| `display_content` | text_display | Formatted content for highlighting display | `display_content:error` |
+| `context_before` | text_code | Lines before the match (multiValued) | `context_before:const` |
+| `context_after` | text_code | Lines after the match (multiValued) | `context_after:return` |
 
-### File & Path Fields  
+### File & Path Fields
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `file_name` | string | Filename only | `file_name:*.js` |
-| `file_path` | string | Full file path | `file_path:src/services/*` |
-| `file_extension` | string | File extension | `file_extension:ts` |
+| `file_name` | string | Filename only (exact match) | `file_name:*.js` |
+| `file_path` | string | Full file path (exact match) | `file_path:src/services/*` |
+| `file_extension` | string | File extension (exact match) | `file_extension:ts` |
 
-### Metadata Fields
+### Numeric & Date Fields
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `line_number` | integer | Line number | `line_number:[1 TO 100]` |
-| `column_number` | integer | Column number | `column_number:10` |
-| `relevance_score` | integer | Relevance score (0-100) | `relevance_score:[50 TO *]` |
-| `file_size` | long | File size in bytes | `file_size:[1000 TO 10000]` |
-| `match_count_in_file` | integer | Matches per file | `match_count_in_file:[5 TO *]` |
+| `line_number` | pint | Line number of the match | `line_number:[1 TO 100]` |
+| `column_number` | pint | Column number of the match | `column_number:[1 TO 10]` |
+| `relevance_score` | plong | Relevance score (0–100) | `relevance_score:[50 TO *]` |
+| `file_size` | plong | File size in bytes | `file_size:[1000 TO 10000]` |
+| `match_count_in_file` | pint | Number of matches in the same file | `match_count_in_file:[5 TO *]` |
+| `context_lines_before` | pint | Number of context lines before match | `context_lines_before:[1 TO *]` |
+| `context_lines_after` | pint | Number of context lines after match | `context_lines_after:[1 TO *]` |
 
 ### Session & Timing Fields
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
 | `search_session_id` | string | Session identifier | `search_session_id:session_*` |
-| `original_query` | text | Original search query | `original_query:function` |
-| `search_timestamp` | date | When indexed | `search_timestamp:[NOW-1DAY TO NOW]` |
-| `file_modified` | date | File modification date | `file_modified:[2024-01-01T00:00:00Z TO NOW]` |
-| `workspace_path` | string | Workspace path | `workspace_path:/home/user/project` |
+| `original_query` | text_general | The original search query text | `original_query:function` |
+| `search_timestamp` | pdate | When the search was performed | `search_timestamp:[NOW-1DAY TO NOW]` |
+| `file_modified` | pdate | File last-modified date | `file_modified:[2026-01-01T00:00:00Z TO NOW]` |
+| `workspace_path` | string | Workspace root path | `workspace_path:*project*` |
 
-### Boolean Fields
+### Boolean & Tag Fields
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `case_sensitive` | boolean | Case sensitive search | `case_sensitive:true` |
-| `whole_word` | boolean | Whole word search | `whole_word:true` |
+| `case_sensitive` | boolean | Whether search was case-sensitive | `case_sensitive:true` |
+| `whole_word` | boolean | Whether whole-word matching was used | `whole_word:true` |
+| `match_type` | string | Match type (literal, regex, glob) | `match_type:regex` |
 
-### Tag Fields
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `ai_tags` | string | AI-generated tags | `ai_tags:performance` |
-| `match_type` | string | Match type (literal/regex/glob) | `match_type:regex` |
+### Raw / Storage-Only Fields
+These fields are stored but **not indexed** — they cannot be queried directly but appear in results:
+| Field | Type | Description |
+|-------|------|-------------|
+| `match_text_raw` | string | Original unanalyzed match text |
+| `full_line_raw` | string | Original unanalyzed full line |
 
-## Query Syntax Examples
+> **Note**: The schema also contains `ai_summary` (text_general) and `ai_tags` (string) fields. These exist in the schema but are not populated by the extension.
 
-### Basic Queries
+---
+
+## Query Syntax
+
+### Boolean Operators
 ```text
-# Simple text search
-function
-
-# Phrase search  
-"async function"
-
-# Boolean operators
-error AND (exception OR failure)
-function NOT deprecated
+error AND exception       # Both terms required
+error OR exception        # Either term matches
+NOT deprecated            # Exclude term
+error AND (exception OR failure)  # Grouping with parentheses
+function NOT deprecated   # Combined
 ```
 
-### File Filtering
+### Phrase Search
 ```text
-# JavaScript files only
-file_extension:js
+"exact phrase"            # Must match exactly in order
+"async function"          # Finds the exact sequence
+```
 
-# TypeScript components
-file_name:*Component.tsx
+### Field-Specific Queries
+```text
+file_extension:js                         # Single field
+file_extension:ts AND match_text:function # Multiple fields
+match_text:function AND relevance_score:[50 TO *]  # Content + metadata
+```
 
-# Files in specific directory
-file_path:src/services/*.ts
+---
 
-# Large files
+## Range Queries
+
+Solr supports range queries for numeric (`pint`, `plong`) and date (`pdate`) fields:
+
+```text
+# Inclusive range (both bounds included)
+relevance_score:[50 TO 100]
+
+# Exclusive range (both bounds excluded)
+relevance_score:{50 TO 100}
+
+# Open-ended (min and above)
+relevance_score:[50 TO *]
+
+# Open-ended (max and below)
+line_number:[* TO 100]
+
+# Date ranges
+search_timestamp:[NOW-1DAY TO NOW]
+search_timestamp:[NOW-7DAY TO NOW]
+file_modified:[2026-01-01T00:00:00Z TO NOW]
+search_timestamp:[2026-01-01T00:00:00Z TO 2026-12-31T23:59:59Z]
+```
+
+---
+
+## Wildcard Queries
+
+```text
+file_name:test*           # Files starting with "test"
+file_name:*Component      # Files ending with "Component"
+file_name:*test*          # Files containing "test"
+file_name:test?           # "test" + any single character
+file_path:src/services/*  # All files under src/services/
+```
+
+Wildcards work on `string` fields (`file_name`, `file_path`, `file_extension`, `search_session_id`, etc.). On tokenized `text_*` fields, wildcards apply to individual tokens.
+
+---
+
+## Special Character Handling
+
+The query builder's `sanitizeQuery()` automatically escapes these Solr special characters in simple (non-field-specific) queries:
+
+```
++ - & | ! ( ) { } [ ] ^ " ~ * ? : \ /
+```
+
+This means:
+- **Simple queries** like `function()` are safe — the parentheses are escaped automatically
+- **Field-specific queries** preserve wildcards and quotes in values (e.g., `file_name:*.js` keeps the `*`)
+- **Quoted strings** in field values are passed through as-is (e.g., `match_text:"exact phrase"`)
+
+If you need to search for literal special characters in a field query, escape them with backslash:
+
+```text
+match_text:function\(\)     # Search for literal "function()"
+file_name:my\-file.js       # Search for "my-file.js"
+```
+
+---
+
+## Relevance Scoring & Boosts
+
+### How Scoring Works
+
+The `/search` handler uses **edismax** (Extended DisMax) with field-level boosting. Matches in different fields contribute different scores:
+
+**Query field boosts (`qf`)**:
+| Field | Boost | Effect |
+|-------|-------|--------|
+| `match_text` | 5.0× | Highest priority — the actual matched text |
+| `full_line` | 3.0× | High — the complete line containing the match |
+| `file_name` | 2.0× | Medium — filename matches |
+| `context_before` | 1.5× | Low — surrounding context lines |
+| `context_after` | 1.5× | Low — surrounding context lines |
+
+**Phrase boosts (`pf`)** — additional scoring when the entire query appears as a phrase:
+| Field | Boost |
+|-------|-------|
+| `match_text` | 10.0× |
+| `full_line` | 5.0× |
+
+This means a match in `match_text` is worth 5× more than a match in context lines. Phrase matches (where all query words appear together in order) get an additional boost.
+
+### Client-Side Boosts
+
+The query builder also applies boosts when routing simple queries:
+- `code_all` gets a 1.5× boost for code-pattern queries
+- `content_all` gets a 1.0× boost (baseline)
+
+### Default Sort Order
+
+Results are sorted by `score desc, search_timestamp desc` — highest relevance first, then most recent.
+
+---
+
+## Examples by Use Case
+
+### Finding Specific Files
+```text
+# By name
+file_name:Component.tsx
+
+# By extension
+file_extension:ts
+
+# By path
+file_path:src/services/*
+
+# By size (large files)
 file_size:[10000 TO *]
 ```
 
-### Content Targeting
+### Content Search
 ```text
-# Search only in match text
-match_text:function
+# In matched text
+match_text:"async function"
 
-# Search in AI summaries
-ai_summary:"performance improvement"
+# In code fields
+code_all:import
 
-# Search full lines
-full_line:"import React"
-
-# Search code content specifically  
-code_all:async
+# In full lines
+full_line:"export default"
 ```
 
-### Quality & Relevance
+### Quality Filtering
 ```text
-# High relevance results only
+# High relevance only
 relevance_score:[75 TO 100]
 
-# Multiple matches per file
+# Files with many matches
 match_count_in_file:[3 TO *]
 
-# Combine quality with content
+# Combine quality + content
 match_text:function AND relevance_score:[50 TO *]
 ```
 
@@ -135,9 +293,6 @@ line_number:[1 TO 50]
 
 # Specific line range
 line_number:[100 TO 200]
-
-# Beginning of lines (low column numbers)
-column_number:[1 TO 10]
 ```
 
 ### Time-Based Searches
@@ -147,21 +302,15 @@ search_timestamp:[NOW-1DAY TO NOW]
 
 # Recently modified files
 file_modified:[NOW-7DAY TO NOW]
-
-# Specific date range
-search_timestamp:[2024-01-01T00:00:00Z TO 2024-12-31T23:59:59Z]
 ```
 
-### Session Management
+### Session Queries
 ```text
 # Search in specific session
 search_session_id:session_1234567890
 
-# Original queries containing "test"
+# Find sessions by original query
 original_query:test
-
-# All sessions
-search_session_id:session_*
 ```
 
 ### Complex Combined Queries
@@ -169,125 +318,39 @@ search_session_id:session_*
 # TypeScript functions with high relevance
 file_extension:ts AND match_text:function AND relevance_score:[60 TO *]
 
-# Recent bug fixes in services
-file_path:src/services/* AND ai_summary:bug AND search_timestamp:[NOW-7DAY TO NOW]
-
 # Large JavaScript files with async code
 file_extension:js AND file_size:[5000 TO *] AND code_all:async
 
-# High-quality React components  
+# High-quality React components
 file_name:*Component.tsx AND relevance_score:[70 TO *] AND match_count_in_file:[2 TO *]
 
-# Performance-related code in first 100 lines
-(match_text:performance OR ai_summary:performance) AND line_number:[1 TO 100]
+# TODO/FIXME in code files
+(match_text:TODO OR match_text:FIXME) AND file_extension:(js OR ts) AND line_number:[1 TO 100]
+
+# API docs
+match_text:function AND file_path:*docs* AND file_extension:md
 ```
 
-## Range Queries
-
-Solr supports range queries for numeric and date fields:
-
-```text
-# Numeric ranges
-field:[min TO max]      # Inclusive range
-field:{min TO max}      # Exclusive range  
-field:[min TO *]        # Open-ended (min and above)
-field:[* TO max]        # Open-ended (max and below)
-
-# Date ranges
-search_timestamp:[NOW-1DAY TO NOW]           # Last day
-file_modified:[2024-01-01T00:00:00Z TO NOW]  # Since January 1, 2024
-```
-
-## Wildcard Queries
-
-```text
-# Wildcards in field values
-file_name:test*         # Files starting with "test"
-file_name:*Component    # Files ending with "Component"  
-file_name:*test*        # Files containing "test"
-
-# Single character wildcard
-file_name:test?         # "test" + any single character
-```
-
-## Escaping Special Characters
-
-If your search terms contain special characters, they need to be escaped:
-
-```text
-# Special characters: + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
-match_text:function\(\)     # Search for "function()"
-file_name:my\-file.js       # Search for "my-file.js"
-```
+---
 
 ## Configuration
 
 ### Default Search Fields
 
-Configure which fields are searched for simple queries:
+Configure which fields are searched for simple (non-field-specific) queries:
 
 ```json
 {
-  "smart-search.defaultSolrFields": "content_all,code_all,ai_summary"
+  "smart-search.defaultSolrFields": "content_all,code_all"
 }
 ```
 
-**Options:**
-- Single field: `"content_all"`
-- Multiple fields: `"content_all,code_all,match_text"`
-- Include AI: `"content_all,code_all,ai_summary"`
+This setting is used when the query builder doesn't detect a more specific routing target (filename pattern or code pattern).
 
 ### Best Practices
 
-1. **Start Simple**: Use simple queries for everyday searches
-2. **Field-Specific for Precision**: Use field queries when you need exact control
-3. **Combine Effectively**: Mix content and metadata filters for powerful searches
-4. **Use Ranges**: Leverage range queries for numeric and date filtering
-5. **Test Incrementally**: Build complex queries step by step
-
-### Performance Tips
-
-1. **Narrow First**: Use specific fields rather than searching all content
-2. **Use Ranges**: Numeric/date ranges are very efficient
-3. **Limit Results**: Use reasonable `maxResults` settings
-4. **Index Management**: Keep Solr indexes optimized for best performance
-
-## Examples by Use Case
-
-### Finding Bugs
-```text
-# Simple
-bug fix
-
-# Advanced
-ai_summary:bug AND relevance_score:[50 TO *] AND search_timestamp:[NOW-30DAY TO NOW]
-```
-
-### Code Reviews
-```text
-# Simple  
-TODO FIXME
-
-# Advanced
-(match_text:TODO OR match_text:FIXME) AND file_extension:(js OR ts) AND line_number:[1 TO 100]
-```
-
-### Performance Investigation
-```text
-# Simple
-performance slow
-
-# Advanced  
-(ai_summary:performance OR match_text:performance) AND file_size:[5000 TO *] AND relevance_score:[60 TO *]
-```
-
-### API Documentation
-```text
-# Simple
-function API
-
-# Advanced
-match_text:function AND file_path:*/docs/* AND file_extension:md
-```
-
-This query syntax gives you powerful control over your searches while maintaining simplicity for everyday use cases.
+1. **Start simple** — type plain text and let the smart routing choose fields
+2. **Use field queries for precision** — `file_extension:ts AND match_text:function`
+3. **Combine content + metadata** — mix text queries with numeric/date filters
+4. **Use ranges for filtering** — `relevance_score:[50 TO *]` is very efficient
+5. **Build incrementally** — start with one condition and add more

@@ -83,24 +83,25 @@
   <!-- Request handlers -->
   
   <!-- Standard request handler -->
-<!-- Enhanced request handler with highlighting -->
+<!-- Standard request handler with highlighting -->
 <requestHandler name="/select" class="solr.SearchHandler">
   <lst name="defaults">
     <str name="echoParams">explicit</str>
     <int name="rows">10</int>
     <str name="df">content_all</str>
     
-    <!-- Default highlighting settings -->
+    <!-- Highlighting defaults — aligned with SolrQueryBuilder.buildSearchParams().
+         The canonical highlighting field is display_content (type: text_display).
+         Per-query params from the extension override these defaults. -->
     <str name="hl">false</str>
-    <str name="hl.fl">content_highlight,code_highlight,match_text,full_line</str>
-    <str name="hl.simple.pre">&lt;mark class="solr-highlight"&gt;</str>
+    <str name="hl.fl">display_content</str>
+    <str name="hl.simple.pre">&lt;mark class="highlight"&gt;</str>
     <str name="hl.simple.post">&lt;/mark&gt;</str>
-    <int name="hl.fragsize">200</int>
-    <int name="hl.snippets">3</int>
+    <int name="hl.fragsize">300</int>
+    <int name="hl.snippets">1</int>
     <str name="hl.mergeContiguous">true</str>
     <str name="hl.highlightMultiTerm">true</str>
     <str name="hl.usePhraseHighlighter">true</str>
-    <str name="hl.highlightPhrase">true</str>
     <int name="hl.maxAnalyzedChars">500000</int>
   </lst>
   
@@ -114,7 +115,9 @@
   </arr>
 </requestHandler>
 
-  <!-- Search for ripgrep results -->
+  <!-- Search for ripgrep results — primary handler used by IndexManager.
+       SolrQueryBuilder.buildSearchParams() sends per-query hl params that override
+       these defaults. The canonical highlighting field is display_content. -->
   <requestHandler name="/search" class="solr.SearchHandler">
     <lst name="defaults">
       <str name="defType">edismax</str>
@@ -126,9 +129,15 @@
       <str name="fl">*,score</str>
       <str name="sort">score desc, search_timestamp desc</str>
       <str name="hl">true</str>
-      <str name="hl.fl">match_text,full_line,context_before,context_after</str>
-      <str name="hl.simple.pre">&lt;em&gt;</str>
-      <str name="hl.simple.post">&lt;/em&gt;</str>
+      <str name="hl.fl">display_content</str>
+      <str name="hl.simple.pre">&lt;mark class="highlight"&gt;</str>
+      <str name="hl.simple.post">&lt;/mark&gt;</str>
+      <int name="hl.fragsize">300</int>
+      <int name="hl.snippets">1</int>
+      <str name="hl.mergeContiguous">true</str>
+      <str name="hl.highlightMultiTerm">true</str>
+      <str name="hl.usePhraseHighlighter">true</str>
+      <int name="hl.maxAnalyzedChars">500000</int>
       <str name="facet">true</str>
       <str name="facet.field">file_extension</str>
       <str name="facet.field">search_session_id</str>
@@ -171,6 +180,20 @@
   <!-- Analysis handler for debugging -->
   <requestHandler name="/analysis/field" startup="lazy" class="solr.FieldAnalysisRequestHandler"/>
   <requestHandler name="/analysis/document" class="solr.DocumentAnalysisRequestHandler" startup="lazy"/>
+
+  <!-- Terms component — used by SolrSessionManager.getSuggestions() for
+       auto-complete suggestions via prefix matching on match_text. -->
+  <searchComponent name="terms" class="solr.TermsComponent"/>
+
+  <requestHandler name="/terms" class="solr.SearchHandler">
+    <lst name="defaults">
+      <bool name="terms">true</bool>
+      <bool name="distrib">false</bool>
+    </lst>
+    <arr name="components">
+      <str>terms</str>
+    </arr>
+  </requestHandler>
 
   <!-- Legacy XML update handler -->
   <requestHandler name="/update/xml" class="solr.UpdateRequestHandler" startup="lazy"/>

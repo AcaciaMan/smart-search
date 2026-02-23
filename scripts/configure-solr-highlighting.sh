@@ -1,226 +1,127 @@
 #!/bin/bash
 
-# Solr Highlighting Configuration Script for Smart Search
-# This script configures Solr for optimal highlighting performance
+# Solr Highlighting Verification Script for Smart Search
+# Verifies that the smart-search-results core has the required schema fields
+# and highlighting configuration, then runs a quick highlighting smoke test.
+#
+# The project's managed-schema already ships with the display_content field
+# (type text_display) used for all server-side highlighting.  This script
+# confirms the setup is correct — it does NOT add extra fields.
+#
+# Prerequisites:
+#   - Solr is running (standalone mode)
+#   - The smart-search-results core already exists with the project's managed-schema
+#   - curl is available
+#
+# Usage:
+#   ./scripts/configure-solr-highlighting.sh
+#   SOLR_URL=http://myhost:8983/solr ./scripts/configure-solr-highlighting.sh
+#
+# See also: SOLR_HIGHLIGHTING_CONFIG.md
+
+set -euo pipefail
 
 SOLR_URL="${SOLR_URL:-http://localhost:8983/solr}"
-COLLEecho ""
-echo "📊 Configuration Summary:"
-echo "- ✅ Enhanced field types added (text_highlight, text_code_highlight)"
-echo "- ✅ Dedicated highlighting fields created"  
-echo "- ✅ Copy fields configured for automatic population"
-echo "- ✅ Collection reloaded"
-echo "- ✅ Configuration files available in solr/smart-search-results/conf/"
-echo ""
-echo "📁 Configuration Files:"
-echo "  - synonyms.txt (synonym expansion)"
-echo "  - protwords.txt (protected words)"
-echo "  - managed-schema (field definitions - no stopwords for code search)"
-echo "  - solrconfig.xml (Solr configuration)"
-echo ""
-echo "🔧 Next Steps:"
-echo "1. Copy configuration files to your Solr instance directory if needed"
-echo "2. Reindex your data to populate the new highlighting fields"
-echo "3. Test searches in your VS Code extension"
-echo "4. Monitor Solr performance and adjust fragment sizes if needed"LLECTION:-smart-search-results}"
+CORE_NAME="smart-search-results"
 
-echo "🔧 Configuring Solr highlighting for Smart Search..."
+echo "====================================================="
+echo " Smart Search — Highlighting Verification"
+echo "====================================================="
 echo "Solr URL: $SOLR_URL"
-echo "Collection: $COLLECTION"
+echo "Core:     $CORE_NAME"
 echo ""
 
-# Function to make API calls with error handling
-make_request() {
-    local method="$1"
-    local url="$2"
-    local data="$3"
-    
-    echo "📡 Making $method request to: $url"
-    
-    if [ "$method" = "POST" ]; then
-        response=$(curl -s -w "\n%{http_code}" -X POST -H 'Content-type:application/json' "$url" -d "$data")
-    else
-        response=$(curl -s -w "\n%{http_code}" "$url")
-    fi
-    
-    http_code=$(echo "$response" | tail -n1)
-    body=$(echo "$response" | head -n -1)
-    
-    if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-        echo "✅ Success (HTTP $http_code)"
-        return 0
-    else
-        echo "❌ Failed (HTTP $http_code)"
-        echo "Response: $body"
-        return 1
-    fi
-}
-
-# Test Solr connectivity
-echo "🔍 Testing Solr connectivity..."
-if ! make_request "GET" "$SOLR_URL/admin/collections?action=LIST"; then
-    echo "❌ Cannot connect to Solr at $SOLR_URL"
-    echo "Please ensure Solr is running and accessible."
+# ── Prerequisite: curl ──
+if ! command -v curl &>/dev/null; then
+    echo "ERROR: curl not found. Please install curl."
     exit 1
 fi
 
-echo ""
-echo "🏗️  Adding enhanced field types..."
+# ── Helper: cleanup test document on exit ──
+cleanup() {
+    curl -s -o /dev/null -X POST "$SOLR_URL/$CORE_NAME/update?commit=true" \
+        -H "Content-Type: text/xml" \
+        -d '<delete><query>id:hl-verify-1</query></delete>' 2>/dev/null || true
+}
+trap cleanup EXIT
 
-# Add text_highlight field type
-highlight_field_type='{
-  "add-field-type": {
-    "name": "text_highlight",
-    "class": "solr.TextField",
-    "positionIncrementGap": "100",
-    "analyzer": {
-      "tokenizer": {"class": "solr.StandardTokenizerFactory"},
-      "filters": [
-        {"class": "solr.LowerCaseFilterFactory"},
-        {"class": "solr.StopFilterFactory", "ignoreCase": "true", "words": "stopwords.txt"},
-        {"class": "solr.PorterStemFilterFactory"},
-        {"class": "solr.RemoveDuplicatesTokenFilterFactory"}
-      ]
-    }
-  }
-}'
-
-make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$highlight_field_type"
-
-# Add text_code_highlight field type
-code_field_type='{
-  "add-field-type": {
-    "name": "text_code_highlight",
-    "class": "solr.TextField",
-    "positionIncrementGap": "100",
-    "analyzer": {
-      "tokenizer": {"class": "solr.StandardTokenizerFactory"},
-      "filters": [
-        {"class": "solr.LowerCaseFilterFactory"},
-        {"class": "solr.StopFilterFactory", "ignoreCase": "true", "words": "stopwords.txt", "enablePositionIncrements": "true"},
-        {"class": "solr.RemoveDuplicatesTokenFilterFactory"}
-      ]
-    }
-  }
-}'
-
-make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$code_field_type"
-
-echo ""
-echo "📋 Adding highlighting fields..."
-
-# Add content_highlight field
-content_field='{
-  "add-field": {
-    "name": "content_highlight",
-    "type": "text_highlight",
-    "indexed": true,
-    "stored": false,
-    "multiValued": false
-  }
-}'
-
-make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$content_field"
-
-# Add code_highlight field
-code_field='{
-  "add-field": {
-    "name": "code_highlight",
-    "type": "text_code_highlight",
-    "indexed": true,
-    "stored": false,
-    "multiValued": false
-  }
-}'
-
-make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$code_field"
-
-# Add file_path_highlight field
-filepath_field='{
-  "add-field": {
-    "name": "file_path_highlight",
-    "type": "text_highlight",
-    "indexed": true,
-    "stored": false,
-    "multiValued": false
-  }
-}'
-
-make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$filepath_field"
-
-echo ""
-echo "🔗 Adding copy fields..."
-
-# Copy fields for highlighting
-copy_fields='[
-  {
-    "add-copy-field": {
-      "source": "content_all",
-      "dest": "content_highlight"
-    }
-  },
-  {
-    "add-copy-field": {
-      "source": "code_all",
-      "dest": "code_highlight"
-    }
-  },
-  {
-    "add-copy-field": {
-      "source": "match_text",
-      "dest": "content_highlight"
-    }
-  },
-  {
-    "add-copy-field": {
-      "source": "full_line",
-      "dest": "code_highlight"
-    }
-  },
-  {
-    "add-copy-field": {
-      "source": "file_path",
-      "dest": "file_path_highlight"
-    }
-  }
-]'
-
-echo "$copy_fields" | jq -c '.[]' | while read -r copy_field; do
-    make_request "POST" "$SOLR_URL/$COLLECTION/schema" "$copy_field"
-done
-
-echo ""
-echo "🔄 Reloading collection to apply changes..."
-reload_response=$(curl -s "$SOLR_URL/admin/collections?action=RELOAD&name=$COLLECTION")
-if echo "$reload_response" | grep -q '"status":0'; then
-    echo "✅ Collection reloaded successfully"
-else
-    echo "⚠️  Collection reload may have failed. Check Solr logs."
+# ── [1/5] Solr connectivity ──
+echo "[1/5] Checking Solr connectivity..."
+if ! curl -sf "$SOLR_URL/admin/info/system" >/dev/null 2>&1; then
+    echo "FAIL: Cannot connect to Solr at $SOLR_URL"
+    echo "Please ensure Solr is running: bin/solr start"
+    exit 1
 fi
+echo "OK"
 
-echo ""
-echo "🧪 Testing highlighting configuration..."
-
-# Test highlighting with a simple query
-test_url="$SOLR_URL/$COLLECTION/select?q=function&hl=true&hl.fl=content_highlight,code_highlight&rows=1"
-test_response=$(curl -s "$test_url")
-
-if echo "$test_response" | grep -q '"highlighting"'; then
-    echo "✅ Highlighting is working!"
-else
-    echo "⚠️  Highlighting test inconclusive. May need data reindexing."
+# ── [2/5] Core exists ──
+echo "[2/5] Checking core $CORE_NAME..."
+if ! curl -s "$SOLR_URL/$CORE_NAME/admin/ping" 2>/dev/null | grep -q '"status":"OK"'; then
+    echo "FAIL: Core '$CORE_NAME' not found."
+    echo "Create it first — see solr/README.md for instructions."
+    exit 1
 fi
+echo "OK"
+
+# ── [3/5] display_content field in schema ──
+echo "[3/5] Verifying display_content field in schema..."
+if ! curl -s "$SOLR_URL/$CORE_NAME/schema/fields/display_content" 2>/dev/null | grep -q '"display_content"'; then
+    echo "FAIL: display_content field not found in schema."
+    echo "The managed-schema shipped with this project should contain it."
+    echo "Re-copy solr/smart-search-results/conf/managed-schema and reload."
+    exit 1
+fi
+echo "OK"
+
+# ── [4/5] Index test document ──
+echo "[4/5] Indexing test document..."
+index_response=$(curl -s -w "\n%{http_code}" -X POST \
+    "$SOLR_URL/$CORE_NAME/update/json/docs?commit=true" \
+    -H "Content-Type: application/json" \
+    -d '[{
+        "id": "hl-verify-1",
+        "search_session_id": "hl-verify",
+        "original_query": "function",
+        "search_timestamp": "2025-01-01T00:00:00Z",
+        "workspace_path": "/test",
+        "file_path": "/test/app.js",
+        "file_name": "app.js",
+        "file_extension": "js",
+        "line_number": 10,
+        "match_text": "function hello() {",
+        "match_text_raw": "function hello() {",
+        "full_line": "function hello() {",
+        "full_line_raw": "function hello() {",
+        "display_content": "  const x = 1;\n>>> function hello() { <<<\n  return x;"
+    }]')
+
+http_code=$(echo "$index_response" | tail -n1)
+if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+    echo "FAIL: Could not index test document (HTTP $http_code)."
+    exit 1
+fi
+echo "OK"
+
+# ── [5/5] Test highlighting on display_content ──
+echo "[5/5] Testing highlighting on display_content..."
+hl_response=$(curl -s "$SOLR_URL/$CORE_NAME/search?q=function&hl=true&hl.fl=display_content&rows=1")
+if ! echo "$hl_response" | grep -q '"highlighting"'; then
+    echo "FAIL: Highlighting response missing."
+    exit 1
+fi
+echo "OK"
 
 echo ""
-echo "📊 Configuration Summary:"
-echo "- ✅ Enhanced field types added (text_highlight, text_code_highlight)"
-echo "- ✅ Dedicated highlighting fields created"
-echo "- ✅ Copy fields configured for automatic population"
-echo "- ✅ Collection reloaded"
+echo "====================================================="
+echo " All checks passed!"
+echo "====================================================="
 echo ""
-echo "🔧 Next Steps:"
-echo "1. Reindex your data to populate the new highlighting fields"
-echo "2. Test searches in your VS Code extension"
-echo "3. Monitor Solr performance and adjust fragment sizes if needed"
+echo "Highlighting Configuration:"
+echo "  Canonical field : display_content (type: text_display)"
+echo "  Highlight tags  : <mark class=\"highlight\">...</mark>"
+echo "  Request handler : /search (edismax, hl=true by default)"
 echo ""
-echo "📖 For manual configuration details, see: SOLR_HIGHLIGHTING_CONFIG.md"
+echo "Configuration files:"
+echo "  solr/smart-search-results/conf/managed-schema   (schema)"
+echo "  solr/smart-search-results/conf/solrconfig.xml   (handlers)"
+echo "  SOLR_HIGHLIGHTING_CONFIG.md                     (documentation)"

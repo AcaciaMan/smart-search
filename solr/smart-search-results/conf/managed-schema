@@ -10,7 +10,10 @@
   <!-- String field type for exact matches, not tokenized -->
   <fieldType name="string" class="solr.StrField" sortMissingLast="true" docValues="true"/>
   
-  <!-- Text field type for full-text search with standard analysis -->
+  <!-- Text field type for full-text search with standard analysis.
+       Query-time synonyms expand searches (e.g. "function" also matches "method").
+       No stopwords — all words matter in code search.
+       No stemming — protwords.txt is reserved for future use if stemming is added. -->
   <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100" multiValued="true">
     <analyzer type="index">
       <tokenizer class="solr.StandardTokenizerFactory"/>
@@ -19,6 +22,7 @@
     <analyzer type="query">
       <tokenizer class="solr.StandardTokenizerFactory"/>
       <filter class="solr.LowerCaseFilterFactory"/>
+      <filter class="solr.SynonymGraphFilterFactory" synonyms="synonyms.txt" ignoreCase="true" expand="true"/>
     </analyzer>
   </fieldType>
 
@@ -46,6 +50,7 @@
               catenateAll="0" 
               splitOnCaseChange="1"/>
       <filter class="solr.LowerCaseFilterFactory"/>
+      <filter class="solr.SynonymGraphFilterFactory" synonyms="synonyms.txt" ignoreCase="true" expand="true"/>
     </analyzer>
   </fieldType>
 

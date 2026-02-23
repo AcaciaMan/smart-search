@@ -9,26 +9,30 @@ export class SolrQueryBuilder {
    * Build comprehensive search parameters for Solr queries
    */
   buildSearchParams(options: SearchOptions, sessionId?: string): Record<string, any> {
+    // Determine row limit: prefer options.maxResults, then smart-search.maxFiles setting, default 100.
+    // Cap at 10 000 to prevent accidental extreme queries.
+    const configuredMax = vscode.workspace.getConfiguration('smart-search').get('maxFiles', 100);
+    const rows = Math.min(options.maxResults || configuredMax, 10000);
+
     const queryParams: any = {
       q: this.buildSolrQuery(options.query),
-      rows: 1000, // Large default limit - filtering happens at file level
+      rows,
       wt: 'json',
-      hl: 'true',
-      'hl.fl': 'display_content',
-      'hl.simple.pre': '<mark class="highlight">',
-      'hl.simple.post': '</mark>',
-      'hl.fragsize': 300,
-      'hl.snippets': 1,
       sort: 'score desc, search_timestamp desc',
       fl: '*,score'
+      // Highlighting params are provided by HighlightService.buildSolrHighlightParams()
+      // and merged in by IndexManager before sending to Solr.
     };
 
-    // Add session filter if provided
+    // Build filter queries.
+    // Ideally each filter would be a separate `fq` param so Solr can cache them
+    // independently.  However, axios serialises JS arrays with bracket notation
+    // (fq[]=…) which Solr does not accept.  A custom paramsSerializer would fix
+    // this, but the single-string approach is functionally correct and simpler.
     if (sessionId) {
       queryParams.fq = `search_session_id:${sessionId}`;
     }
 
-    // Apply search options as filters
     if (options.caseSensitive !== undefined) {
       queryParams.fq = (queryParams.fq ? queryParams.fq + ' AND ' : '') + `case_sensitive:${options.caseSensitive}`;
     }

@@ -29,31 +29,35 @@ export class HighlightService {
   };
 
   /**
-   * Build Solr highlighting parameters for queries
+   * Build Solr highlighting parameters for queries.
+   *
+   * The canonical highlighting field is `display_content` (type: text_display).
+   * This field is populated during indexing by SolrQueryBuilder.createDisplayContent()
+   * and combines context-before, the match line, and context-after into a single
+   * block of text optimised for highlighting.
+   *
+   * SolrQueryBuilder.buildSearchParams() sets the same core hl params inline.
+   * This method provides a richer, reusable alternative with additional tuning
+   * knobs (alternateField, requireFieldMatch, etc.) that callers can merge into
+   * their query params when they need finer control.
    */
   public buildSolrHighlightParams(options: SearchOptions, highlightOptions?: HighlightOptions): Record<string, any> {
     const opts = { ...this.defaultOptions, ...highlightOptions };
     
     return {
       hl: 'true',
-      'hl.fl': 'content_highlight,code_highlight,match_text,full_line,context_before,context_after',
+      'hl.fl': 'display_content',
       'hl.simple.pre': opts.preTag,
       'hl.simple.post': opts.postTag,
       'hl.fragsize': opts.fragmentSize,
       'hl.snippets': opts.maxFragments,
       'hl.maxAnalyzedChars': 500000, // Analyze up to 500KB per field
-      'hl.alternateField': 'match_text', // Fallback field if no highlights found
-      'hl.maxAlternateFieldLength': 200,
+      'hl.alternateField': 'display_content', // Return raw field value if no highlights found
+      'hl.maxAlternateFieldLength': 300,
       'hl.highlightMultiTerm': 'true', // Highlight wildcard, fuzzy, range queries
       'hl.mergeContiguous': 'true', // Merge adjacent highlighted terms
       'hl.requireFieldMatch': 'false', // Allow highlights from different fields
-      'hl.usePhraseHighlighter': 'true', // Better phrase highlighting
-      'hl.highlightPhrase': 'true'
-      // Removed problematic parameters that cause 400 errors:
-      // 'hl.regex.slop': '0.6', // Flexibility for regex fragmenter
-      // 'hl.fragmenter': 'gap', // Use gap fragmenter for better performance
-      // 'hl.formatter': 'html', // Use HTML formatter
-      // 'hl.encoder': 'html' // Safe HTML encoding
+      'hl.usePhraseHighlighter': 'true' // Better phrase highlighting
     };
   }
 

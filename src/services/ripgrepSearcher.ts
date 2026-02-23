@@ -122,9 +122,7 @@ export class RipgrepSearcher {
         args.push('--word-regexp');
       }
 
-      if (options.useRegex) {
-        args.push('--regexp');
-      } else {
+      if (!options.useRegex) {
         args.push('--fixed-strings');
       }
 
@@ -349,8 +347,7 @@ export class RipgrepSearcher {
 
       if (!options.caseSensitive) { args.push('--ignore-case'); }
       if (options.wholeWord)      { args.push('--word-regexp'); }
-      if (options.useRegex)       { args.push('--regexp'); }
-      else                        { args.push('--fixed-strings'); }
+      if (!options.useRegex)      { args.push('--fixed-strings'); }
 
       if (options.includePatterns) {
         options.includePatterns.forEach(p => args.push('--glob', p));
@@ -463,11 +460,11 @@ export class RipgrepSearcher {
     }).sort((a, b) => {
       // Primary sort: Combined score (descending)
       const scoreDiff = b.combinedScore - a.combinedScore;
-      if (scoreDiff !== 0) return scoreDiff;
+      if (scoreDiff !== 0) { return scoreDiff; }
       
       // Secondary sort: Match count (descending)
       const countDiff = b.matchCount - a.matchCount;
-      if (countDiff !== 0) return countDiff;
+      if (countDiff !== 0) { return countDiff; }
       
       // Tertiary sort: File path (ascending) for consistency
       return a.file.localeCompare(b.file);

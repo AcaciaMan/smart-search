@@ -1,18 +1,49 @@
-# Programming-related synonyms for better code search
+# Programming-related synonyms for better code search.
+# Applied at query time only (SynonymGraphFilterFactory, expand=true).
+# Searching for any term in a group matches all terms in that group.
+#
+# Format: term1,term2,term3  (bidirectional — any term matches all others)
+#
+# ── Functions & methods ──
 function,func,method,procedure
+# ── Variables & fields ──
 variable,var,field,property
+# ── Types & structures ──
 class,interface,struct,type
+# ── Module system ──
 import,include,require,using
 export,public,external
 private,internal,protected
+# ── Control flow ──
 return,yield,output
+# ── Null/undefined ──
 null,nil,none,undefined
+# ── Boolean values ──
 true,yes,on,enabled
 false,no,off,disabled
+# ── Errors ──
 error,exception,failure,fault
+# ── Logging ──
 debug,log,trace,info
+# ── Testing ──
 test,spec,unit,check
+# ── Configuration ──
 config,configuration,settings,options
+# ── Parameters ──
 params,parameters,arguments,args
+# ── HTTP request/response ──
 request,req,query
 response,res,reply,result
+# ── Collections ──
+array,list,collection
+# ── Strings ──
+string,str,text
+# ── Numbers ──
+integer,int,number
+# ── Booleans (type names) ──
+boolean,bool
+# ── CRUD / lifecycle ──
+create,new,init,initialize
+delete,remove,drop
+update,modify,patch,edit
+read,get,fetch,retrieve

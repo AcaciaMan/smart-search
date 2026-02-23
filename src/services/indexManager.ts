@@ -162,6 +162,10 @@ export class IndexManager {
       }
 
       const queryParams = this.queryBuilder.buildSearchParams(options, sessionId);
+      // Merge highlighting params from HighlightService (centralised hl config)
+      const hlParams = this.highlightService.buildSolrHighlightParams(options);
+      Object.assign(queryParams, hlParams);
+
       const response = await axios.get(`${this.solrUrl}/smart-search-results/search`, {
         params: queryParams
       });
@@ -225,6 +229,9 @@ export class IndexManager {
 
     try {
       const queryParams = this.queryBuilder.buildSearchParams(options, sessionId);
+      // Merge highlighting params from HighlightService (centralised hl config)
+      const hlParams = this.highlightService.buildSolrHighlightParams(options);
+      Object.assign(queryParams, hlParams);
       console.log(`Solr query parameters:`, queryParams);
 
       const response = await axios.get(`${this.solrUrl}/smart-search-results/search`, {

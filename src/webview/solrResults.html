@@ -60,7 +60,9 @@
       border-radius: 2px;
     }
     
-    /* Enhanced highlighting styles */
+    /* Highlighting styles — all components now emit <mark class="highlight">.
+       The .solr-highlight selector is kept for backward compatibility with
+       any cached Solr responses that still use the old class. */
     .highlight,
     .solr-highlight,
     mark {
@@ -70,12 +72,6 @@
       border-radius: 2px;
       font-weight: bold;
       border: 1px solid var(--vscode-editor-findMatchBorder);
-    }
-    
-    mark.solr-highlight {
-      background-color: #ffeb3b;
-      color: #000;
-      border: 1px solid #ffc107;
     }
     
     .snippet {
@@ -669,7 +665,7 @@
       if (!html) return '';
       
       // Clean up nested marks first
-      let cleaned = html.replace(/<mark[^>]*><mark[^>]*>/gi, '<mark class="solr-highlight">');
+      let cleaned = html.replace(/<mark[^>]*><mark[^>]*>/gi, '<mark class="highlight">');
       cleaned = cleaned.replace(/<\/mark><\/mark>/gi, '</mark>');
       
       // Create a temporary div to safely parse and clean the HTML

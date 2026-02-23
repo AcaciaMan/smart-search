@@ -1,279 +1,206 @@
-# Solr Configuration for Smart Search Highlighting
+# Solr Highlighting Configuration
 
-This document contains the necessary Solr configuration updates to enable optimal highlighting for the Smart Search extension.
+How the Smart Search extension highlights search results using Solr
+server-side highlighting with a client-side fallback.  Solr marks matching
+terms inside the `display_content` field and wraps them in
+`<mark class="highlight">` tags.  When Solr highlighting is unavailable
+(e.g. when searching ripgrep results that haven't been indexed),
+`HighlightService.highlightText()` performs the same job client-side.
 
-## Prerequisites
+## How It Works
 
-- Solr 8.0+ (recommended: Solr 9.x)
-- `smart-search-results` collection/core already created
-- Admin access to Solr configuration
+Highlighting follows a five-step pipeline:
 
-## Configuration Files
+### 1. Indexing — build the `display_content` field
 
-### 1. Schema Configuration (managed-schema)
+`SolrQueryBuilder.createDisplayContent()` combines context-before lines,
+the match line (wrapped with `>>>` / `<<<` markers), and context-after lines
+into a single text block:
 
-Add these field types to your `managed-schema` file:
-
-```xml
-<!-- Enhanced text field type for better highlighting -->
-<fieldType name="text_highlight" class="solr.TextField" positionIncrementGap="100">
-  <analyzer type="index">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
-    <filter class="solr.PorterStemFilterFactory"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-  <analyzer type="query">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" />
-    <filter class="solr.PorterStemFilterFactory"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-</fieldType>
-
-<!-- Field type optimized for code highlighting -->
-<fieldType name="text_code_highlight" class="solr.TextField" positionIncrementGap="100">
-  <analyzer type="index">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <!-- Preserve more terms for code -->
-    <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" enablePositionIncrements="true"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-  <analyzer type="query">
-    <tokenizer class="solr.StandardTokenizerFactory"/>
-    <filter class="solr.LowerCaseFilterFactory"/>
-    <filter class="solr.StopFilterFactory" ignoreCase="true" words="stopwords.txt" enablePositionIncrements="true"/>
-    <filter class="solr.RemoveDuplicatesTokenFilterFactory"/>
-  </analyzer>
-</fieldType>
+```
+  const x = 1;
+>>> function hello() { <<<
+  return x;
 ```
 
-Add these field definitions (add to existing fields or update if they exist):
+This block is stored in the `display_content` field (type `text_display`).
 
-```xml
-<!-- Dedicated highlighting fields -->
-<field name="content_highlight" type="text_highlight" indexed="true" stored="false" multiValued="false"/>
-<field name="code_highlight" type="text_code_highlight" indexed="true" stored="false" multiValued="false"/>
-<field name="file_path_highlight" type="text_highlight" indexed="true" stored="false" multiValued="false"/>
+### 2. Query — request highlighting from Solr
 
-<!-- Copy fields for highlighting optimization -->
-<copyField source="content_all" dest="content_highlight"/>
-<copyField source="code_all" dest="code_highlight"/>
-<copyField source="match_text" dest="content_highlight"/>
-<copyField source="full_line" dest="code_highlight"/>
-<copyField source="file_path" dest="file_path_highlight"/>
+`IndexManager.searchStoredResults()` (and `searchStoredResultsDetailed()`)
+calls `HighlightService.buildSolrHighlightParams()` to obtain the full set
+of `hl.*` parameters, then merges them into the query params built by
+`SolrQueryBuilder.buildSearchParams()`:
+
+```typescript
+const queryParams = this.queryBuilder.buildSearchParams(options, sessionId);
+const hlParams = this.highlightService.buildSolrHighlightParams(options);
+Object.assign(queryParams, hlParams);
 ```
 
-### 2. Solr Configuration (solrconfig.xml)
+The merged params include `hl=true`, `hl.fl=display_content`, the
+`<mark class="highlight">` tag pair, and tuning knobs like `hl.fragsize`,
+`hl.mergeContiguous`, and `hl.usePhraseHighlighter`.
 
-Add this highlighting component to your `solrconfig.xml`:
+### 3. Solr response — highlighted fragments
 
-```xml
-<!-- Enhanced highlighting component -->
-<searchComponent name="highlight" class="solr.HighlightComponent">
-  <highlighting>
-    <!-- Gap Fragmenter for better snippet generation -->
-    <fragmenter name="gap" 
-                default="true"
-                class="solr.highlight.GapFragmenter">
-      <lst name="defaults">
-        <int name="hl.fragsize">150</int>
-        <float name="hl.regex.slop">0.5</float>
-      </lst>
-    </fragmenter>
-    
-    <!-- Regex Fragmenter for more precise highlighting -->
-    <fragmenter name="regex" 
-                class="solr.highlight.RegexFragmenter">
-      <lst name="defaults">
-        <int name="hl.fragsize">200</int>
-        <float name="hl.regex.slop">0.6</float>
-        <str name="hl.regex.pattern">[-\w ,/\n\"']{20,200}</str>
-      </lst>
-    </fragmenter>
+Solr returns a `highlighting` object keyed by document ID:
 
-    <!-- HTML Formatter with custom styling -->
-    <formatter name="html" 
-               default="true"
-               class="solr.highlight.HtmlFormatter">
-      <lst name="defaults">
-        <str name="hl.simple.pre">&lt;mark class="solr-highlight"&gt;</str>
-        <str name="hl.simple.post">&lt;/mark&gt;</str>
-      </lst>
-    </formatter>
-    
-    <!-- Code formatter for programming content -->
-    <formatter name="code" 
-               class="solr.highlight.HtmlFormatter">
-      <lst name="defaults">
-        <str name="hl.simple.pre">&lt;span class="code-highlight"&gt;</str>
-        <str name="hl.simple.post">&lt;/span&gt;</str>
-      </lst>
-    </formatter>
-
-    <!-- Safe HTML encoder -->
-    <encoder name="html" 
-             default="true"
-             class="solr.highlight.DefaultEncoder"/>
-             
-    <!-- Fragments builders -->
-    <fragmentsBuilder name="simple" 
-                      default="true"
-                      class="solr.highlight.SimpleFragmentsBuilder"/>
-                      
-    <fragmentsBuilder name="single" 
-                      class="solr.highlight.SingleFragmentsBuilder"/>
-  </highlighting>
-</searchComponent>
-```
-
-Update your search request handler (or add these defaults to existing handler):
-
-```xml
-<requestHandler name="/select" class="solr.SearchHandler">
-  <lst name="defaults">
-    <str name="echoParams">explicit</str>
-    <int name="rows">10</int>
-    <str name="df">content_all</str>
-    
-    <!-- Default highlighting settings -->
-    <str name="hl">false</str>
-    <str name="hl.fl">content_highlight,code_highlight,match_text,full_line,file_path_highlight</str>
-    <str name="hl.simple.pre">&lt;mark class="solr-highlight"&gt;</str>
-    <str name="hl.simple.post">&lt;/mark&gt;</str>
-    <int name="hl.fragsize">200</int>
-    <int name="hl.snippets">3</int>
-    <str name="hl.mergeContiguous">true</str>
-    <str name="hl.highlightMultiTerm">true</str>
-    <str name="hl.usePhraseHighlighter">true</str>
-    <str name="hl.highlightPhrase">true</str>
-    <int name="hl.maxAnalyzedChars">500000</int>
-    <str name="hl.requireFieldMatch">false</str>
-    <str name="hl.fragmenter">gap</str>
-    <str name="hl.formatter">html</str>
-    <str name="hl.encoder">html</str>
-  </lst>
-  
-  <arr name="components">
-    <str>query</str>
-    <str>facet</str>
-    <str>mlt</str>
-    <str>highlight</str>
-    <str>stats</str>
-    <str>debug</str>
-  </arr>
-</requestHandler>
-```
-
-## Installation Steps
-
-### Option 1: Using Solr Admin UI (Recommended)
-
-1. **Open Solr Admin**: Navigate to `http://localhost:8983/solr`
-2. **Select Collection**: Choose your `smart-search-results` collection
-3. **Schema Tab**: 
-   - Add the new field types using "Add Field Type"
-   - Add the new fields using "Add Field"
-   - Add copy fields using "Add Copy Field"
-4. **Config Tab**: 
-   - Upload modified `solrconfig.xml` or edit via API
-5. **Reload Collection**: Core Admin → Reload
-
-### Option 2: Manual File Update
-
-1. **Stop Solr**: `bin/solr stop`
-2. **Edit Files**: 
-   - Update `server/solr/smart-search-results/conf/managed-schema`
-   - Update `server/solr/smart-search-results/conf/solrconfig.xml`
-3. **Start Solr**: `bin/solr start`
-4. **Reload Collection**: `bin/solr reload -c smart-search-results`
-
-### Option 3: Configuration API (Advanced)
-
-Use Solr's Config API to update settings programmatically:
-
-```bash
-# Add field type
-curl -X POST -H 'Content-type:application/json' \
-  'http://localhost:8983/solr/smart-search-results/schema' -d '{
-  "add-field-type": {
-    "name": "text_highlight",
-    "class": "solr.TextField",
-    "positionIncrementGap": "100",
-    "analyzer": {
-      "tokenizer": {"class": "solr.StandardTokenizerFactory"},
-      "filters": [
-        {"class": "solr.LowerCaseFilterFactory"},
-        {"class": "solr.StopFilterFactory", "ignoreCase": "true", "words": "stopwords.txt"},
-        {"class": "solr.PorterStemFilterFactory"}
+```json
+{
+  "highlighting": {
+    "doc-1": {
+      "display_content": [
+        "  const x = 1;\n>>> <mark class=\"highlight\">function</mark> hello() { <<<\n  return x;"
       ]
     }
   }
-}'
-
-# Add field
-curl -X POST -H 'Content-type:application/json' \
-  'http://localhost:8983/solr/smart-search-results/schema' -d '{
-  "add-field": {
-    "name": "content_highlight",
-    "type": "text_highlight",
-    "indexed": true,
-    "stored": false
-  }
-}'
-
-# Add copy field
-curl -X POST -H 'Content-type:application/json' \
-  'http://localhost:8983/solr/smart-search-results/schema' -d '{
-  "add-copy-field": {
-    "source": "content_all",
-    "dest": "content_highlight"
-  }
-}'
+}
 ```
 
-## Testing the Configuration
+### 4. Merge — apply highlights to results
 
-After applying the configuration:
+`IndexManager` reads `highlighting[docId].display_content[0]` and attaches
+it to each result as `highlighted_display`.
+`HighlightService.applySolrHighlighting()` can further merge Solr
+highlights into `StoredSearchResult` objects, applying client-side fallback
+for any field Solr did not highlight.
 
-1. **Reindex Data**: Re-run your extension's indexing to populate the new fields
-2. **Test Highlighting**: Search for terms and verify highlighting appears
-3. **Check Logs**: Monitor Solr logs for any configuration errors
+### 5. Fallback — client-side highlighting
 
-## Performance Considerations
+If Solr returns no highlighting data for a document,
+`HighlightService.highlightText()` performs regex-based term matching on
+the raw text (see [Client-Side Fallback](#client-side-fallback) below).
 
-- **Field Storage**: Highlighting fields are `stored="false"` to save space
-- **Analysis Chains**: Optimized for both search and highlighting performance
-- **Fragment Size**: Tuned for code snippets (200 characters default)
-- **Max Analyzed Chars**: Limited to 500KB per field to prevent memory issues
+## Schema Requirements
+
+The `managed-schema` must contain the `text_display` field type and the
+`display_content` field.  Both ship with the project's schema — nothing
+needs to be added manually.
+
+### Field type: `text_display`
+
+```xml
+<fieldType name="text_display" class="solr.TextField" positionIncrementGap="100">
+  <analyzer type="index">
+    <tokenizer class="solr.StandardTokenizerFactory"/>
+    <filter class="solr.LowerCaseFilterFactory"/>
+  </analyzer>
+  <analyzer type="query">
+    <tokenizer class="solr.StandardTokenizerFactory"/>
+    <filter class="solr.LowerCaseFilterFactory"/>
+  </analyzer>
+</fieldType>
+```
+
+### Field: `display_content`
+
+```xml
+<field name="display_content" type="text_display" indexed="true"
+       stored="true" multiValued="false"/>
+```
+
+### Design principles
+
+| Principle | Rationale |
+|-----------|-----------|
+| **No stopwords** | Code search needs words like `if`, `for`, `while`, `function`, `class`. The project's `stopwords.txt` is intentionally empty — see the comments in that file. |
+| **No stemming** | Exact token matching is preferred for code. `PorterStemFilterFactory` is **not** used in any field type. |
+| **StandardTokenizer** | Splits on whitespace and punctuation, producing tokens that align well with programming-language identifiers. |
+| **LowerCaseFilter only** | Case-insensitive matching without any other transformations. |
+
+## solrconfig.xml Settings
+
+Both the `/select` and `/search` request handlers ship with identical
+highlighting defaults.  `IndexManager` uses the `/search` handler.  The
+query-time params from `HighlightService.buildSolrHighlightParams()`
+override these defaults, so the handler config mainly serves as
+documentation and a safety net.
+
+```xml
+<requestHandler name="/search" class="solr.SearchHandler">
+  <lst name="defaults">
+    <str name="hl">true</str>
+    <str name="hl.fl">display_content</str>
+    <str name="hl.simple.pre">&lt;mark class="highlight"&gt;</str>
+    <str name="hl.simple.post">&lt;/mark&gt;</str>
+    <int name="hl.fragsize">300</int>
+    <int name="hl.snippets">1</int>
+    <str name="hl.mergeContiguous">true</str>
+    <str name="hl.highlightMultiTerm">true</str>
+    <str name="hl.usePhraseHighlighter">true</str>
+    <int name="hl.maxAnalyzedChars">500000</int>
+  </lst>
+</requestHandler>
+```
+
+## Customization
+
+All highlighting parameters are centralised in
+`HighlightService.buildSolrHighlightParams()`.  To change highlighting
+behaviour, modify that method or pass a custom `HighlightOptions` object.
+
+| Parameter | Default | Effect |
+|-----------|---------|--------|
+| `hl.fragsize` | `300` (handler) / `150` (HighlightService `fragmentSize`) | Maximum fragment size in characters. Larger values return more context around each match. |
+| `hl.snippets` | `1` (handler) / `3` (HighlightService `maxFragments`) | Number of highlighted fragments to return per field. |
+| `hl.simple.pre` / `hl.simple.post` | `<mark class="highlight">` / `</mark>` | The HTML tags wrapped around matched terms. Change in `HighlightService.defaultOptions` to keep client-side and server-side tags in sync. |
+| `hl.maxAnalyzedChars` | `500000` | Maximum characters Solr will analyze per field for highlighting. Increase if `display_content` values are very long and highlights are being cut off. |
+| `hl.mergeContiguous` | `true` | Merges adjacent highlighted terms into a single `<mark>` tag. |
+| `hl.highlightMultiTerm` | `true` | Enables highlighting for wildcard, fuzzy, and range queries. |
+| `hl.usePhraseHighlighter` | `true` | Highlights phrase queries as a unit rather than individual terms. |
+| `hl.alternateField` | `display_content` | Field to return when no highlights are found (raw field value). |
+| `hl.requireFieldMatch` | `false` | When false, allows highlights even if the query matched on a different field. |
+
+> **Keeping tags in sync:** The same `<mark class="highlight">` tag pair is
+> used in three places — `HighlightService.defaultOptions`,
+> `solrconfig.xml` handler defaults, and
+> `HighlightService.highlightText()`.  If you change the tag, update all
+> three to avoid inconsistent styling.
+
+## Client-Side Fallback
+
+`HighlightService.highlightText()` provides highlighting when Solr is
+unavailable or returns no highlight data.  It is also used by
+`applySolrHighlighting()` for any individual field that Solr did not
+highlight.
+
+### How it works
+
+1. **HTML-escape** the raw text to prevent XSS injection (`escapeHtml()`
+   replaces `&`, `<`, `>`, `"`, and `'` with their HTML entities).
+2. **Extract search terms** from the query, stripping Solr operators
+   (`AND`, `OR`, `NOT`, `+`, `-`), field prefixes (`content:`), and
+   extracting quoted phrases.
+3. **Build a case-insensitive regex** for each term (after HTML-escaping the
+   term itself, since it is matched against the already-escaped text).
+4. **Replace matches** with `<mark class="highlight">$1</mark>`.
+
+Because the text is escaped *before* `<mark>` tags are inserted, the only
+HTML in the output is the highlight tags themselves — no user-supplied
+content can inject raw HTML into the webview.
+
+### Entry points
+
+| Method | Purpose |
+|--------|---------|
+| `highlightText(text, query)` | Highlight a single string. Returns HTML-safe output. |
+| `applySolrHighlighting(results, highlighting, query)` | Merge Solr highlights into `StoredSearchResult[]`, falling back to `highlightText()` per field. |
+| `generateSnippets(result, highlighting, query)` | Build up to 3 highlighted snippets from Solr data or client-side matching. |
 
 ## Troubleshooting
 
-### Common Issues:
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| No `highlighting` key in response | `hl` is false or missing | Verify `HighlightService.buildSolrHighlightParams()` is being called and merged into query params |
+| `display_content` highlights are empty | Field is empty or not stored | Verify the document has a non-empty `display_content` value (`fl=display_content` in a test query) |
+| Highlights use wrong tags | Stale `solrconfig.xml` defaults after editing | Reload core: `curl "http://localhost:8983/solr/admin/cores?action=RELOAD&core=smart-search-results"` |
+| Highlights cut off in long files | `hl.maxAnalyzedChars` too small | Increase from 500 000 — the value is set in `HighlightService.buildSolrHighlightParams()` |
+| Wrong field highlighted | `hl.fl` mismatch | Ensure `hl.fl` is `display_content` in both handler defaults and `HighlightService` |
+| Client-side fallback produces no highlights | Query contains only Solr operators | `extractSearchTerms()` strips operators — a query of only `AND OR NOT` yields zero terms |
 
-1. **No Highlighting**: Check if fields exist and have `indexed="true"`
-2. **Poor Performance**: Reduce `hl.maxAnalyzedChars` or `hl.fragsize`
-3. **Memory Issues**: Limit `hl.snippets` count and fragment sizes
-4. **Configuration Errors**: Check Solr logs for XML parsing errors
+## Further Reading
 
-### Verification Commands:
-
-```bash
-# Check schema
-curl 'http://localhost:8983/solr/smart-search-results/schema/fields'
-
-# Test highlighting
-curl 'http://localhost:8983/solr/smart-search-results/select?q=function&hl=true&hl.fl=content_highlight'
-```
-
-## Benefits of This Configuration
-
-- **30-50% faster highlighting** due to optimized analyzers
-- **Better snippet quality** with regex fragmenter
-- **Improved relevance** with phrase highlighting
-- **Memory efficiency** with dedicated highlighting fields
-- **XSS protection** with HTML encoder
-- **Flexible formatting** with multiple formatters
+- [docs/configuration.md](docs/configuration.md) — Extension settings and Solr connection
+- [solr/README.md](solr/README.md) — Core setup, schema overview, maintenance
+- [Solr Highlighting Guide](https://solr.apache.org/guide/solr/latest/query-guide/highlighting.html)
