@@ -3,13 +3,20 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { SmartSearchProvider } from '../providers/smartSearchProvider';
 import { IndexManager } from '../services';
-import { SearchResult, SearchOptions } from '../types';
+import { SearchResult, SearchOptions, CurrentSearchGlobs } from '../types';
 import { RipgrepResultsPanel } from '../panels/ripgrepResultsPanel';
 import { SolrResultsPanel } from '../panels/solrResultsPanel';
 import { FileStatisticsPanel } from '../panels/fileStatisticsPanel';
 import { RipgrepSearcher } from '../services/ripgrepSearcher';
 import { RecentSearchViewProvider } from './recentSearchViewProvider';
 import { ToolsViewProvider } from './toolsViewProvider';
+
+const DEFAULT_GLOB_STATE: CurrentSearchGlobs = {
+  includeGlobs: [],
+  excludeGlobs: [],
+  customIncludeGlobs: [],
+  customExcludeGlobs: [],
+};
 
 export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'smartSearch.searchView';
@@ -18,6 +25,14 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   private latestSessionId?: string; // Track the latest search session
   private _currentQuery: string = ''; // Track the current/last search query
   private ripgrepSearcher = new RipgrepSearcher();
+
+  /** Current glob state as reported by the webview. */
+  public currentGlobState: CurrentSearchGlobs = { ...DEFAULT_GLOB_STATE };
+
+  /** Name of the currently active filter preset (undefined = no active filter). */
+  private _activeFilterName?: string;
+  /** Scope of the currently active filter preset. */
+  private _activeFilterScope?: 'global' | 'workspace';
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -70,6 +85,21 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           // Focus the Recent Searches sidebar view
           vscode.commands.executeCommand('smartSearch.recentSearchView.focus');
           break;
+        case 'globStateUpdate':
+          this.currentGlobState = {
+            includeGlobs:       Array.isArray(data.includeGlobs)       ? data.includeGlobs       : [],
+            excludeGlobs:       Array.isArray(data.excludeGlobs)       ? data.excludeGlobs       : [],
+            customIncludeGlobs: Array.isArray(data.customIncludeGlobs) ? data.customIncludeGlobs : [],
+            customExcludeGlobs: Array.isArray(data.customExcludeGlobs) ? data.customExcludeGlobs : [],
+            activeFilterName:   typeof data.activeFilterName === 'string' ? data.activeFilterName : undefined,
+            activeFilterScope:  data.activeFilterScope === 'global' || data.activeFilterScope === 'workspace'
+                                  ? data.activeFilterScope
+                                  : undefined,
+          };
+          break;
+        case 'saveAsFilterRequest':
+          vscode.commands.executeCommand('smart-search.saveCurrentSearchAsFilter');
+          break;
       }
     });
   }
@@ -98,6 +128,68 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
     this.latestSessionId = sessionId;
     if (this._view) {
       this._view.webview.postMessage({ type: 'activateSessionMode', sessionId });
+    }
+  }
+
+  /** Returns the currently active filter name and scope (may both be undefined). */
+  public getActiveFilter(): { name?: string; scope?: 'global' | 'workspace' } {
+    return { name: this._activeFilterName, scope: this._activeFilterScope };
+  }
+
+  /**
+   * Replaces the current glob state with the supplied arrays and notifies the webview
+   * via a "globStateUpdate" echo so the search bar stays in sync.
+   */
+  public setGlobState(
+    includeGlobs: string[],
+    excludeGlobs: string[],
+    customIncludeGlobs: string[],
+    customExcludeGlobs: string[],
+  ): void {
+    this.currentGlobState = {
+      ...this.currentGlobState,
+      includeGlobs,
+      excludeGlobs,
+      customIncludeGlobs,
+      customExcludeGlobs,
+    };
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'globStateUpdate',
+        includeGlobs,
+        excludeGlobs,
+        customIncludeGlobs,
+        customExcludeGlobs,
+      });
+    }
+  }
+
+  /**
+   * Re-runs the last search query with current settings.
+   * No-op if no query has been made yet.
+   */
+  public async rerunLastSearch(): Promise<void> {
+    if (this._currentQuery) {
+      await this.performSearch(this._currentQuery);
+    }
+  }
+
+  /**
+   * Sets (or clears) the active filter and notifies the webview via a "filterChanged" message.
+   * Pass undefined for both arguments to clear the active filter.
+   */
+  public setActiveFilter(
+    name: string | undefined,
+    scope: 'global' | 'workspace' | undefined,
+  ): void {
+    this._activeFilterName = name;
+    this._activeFilterScope = scope;
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'filterChanged',
+        activeFilterName: name,
+        activeFilterScope: scope,
+      });
     }
   }
 
@@ -197,6 +289,13 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           ? liveOpts!.contextLinesAfter
           : (liveOpts?.contextLines || 0) > 0 ? liveOpts!.contextLines : 0;
 
+        const cg = this.currentGlobState;
+        const hasActiveGlobs = cg.includeGlobs.length > 0 ||
+                               cg.excludeGlobs.length > 0 ||
+                               cg.customIncludeGlobs.length > 0 ||
+                               cg.customExcludeGlobs.length > 0 ||
+                               !!cg.activeFilterName;
+
         effectiveSearchOptions = {
           query,
           maxFiles: persistedSettings?.maxFiles || options.maxFiles || 100,
@@ -207,7 +306,11 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           caseSensitive: persistedSettings?.caseSensitive ?? liveOpts?.caseSensitive ?? false,
           wholeWord:     persistedSettings?.wholeWord     ?? liveOpts?.wholeWord     ?? false,
           useRegex:      persistedSettings?.useRegex      ?? liveOpts?.useRegex      ?? false,
-          searchInResults: options.searchInResults || false
+          searchInResults: options.searchInResults || false,
+          // Pass currentGlobs so ripgrepSearcher resolves and applies them.
+          // Only set when non-empty to avoid overriding persistedSettings patterns
+          // when no refinement globs are active.
+          currentGlobs: hasActiveGlobs ? cg : undefined,
         };
         
         console.log('Performing fresh search with merged settings:', effectiveSearchOptions);

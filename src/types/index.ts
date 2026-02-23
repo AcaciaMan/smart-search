@@ -19,6 +19,15 @@ export interface SearchResult {
   }>;
 }
 
+export interface CurrentSearchGlobs {
+  includeGlobs: string[];
+  excludeGlobs: string[];
+  customIncludeGlobs: string[];
+  customExcludeGlobs: string[];
+  activeFilterName?: string;
+  activeFilterScope?: 'global' | 'workspace';
+}
+
 export interface SearchOptions {
   query: string;
   maxFiles?: number; // Maximum number of files to return results from (ripgrep)
@@ -32,6 +41,7 @@ export interface SearchOptions {
   contextLines?: number; // Number of context lines to show around matches (for backward compatibility)
   contextLinesBefore?: number; // Number of context lines to show before matches
   contextLinesAfter?: number; // Number of context lines to show after matches
+  currentGlobs?: CurrentSearchGlobs;
 }
 
 export interface StoredSearchResult {

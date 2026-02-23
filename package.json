@@ -23,7 +23,7 @@
     "find",
     "discover"
   ],
-  "version": "2.0.2",
+  "version": "2.1.0",
   "publisher": "manacacia",
   "icon": "icon.png",
   "repository": {
@@ -68,6 +68,24 @@
         "title": "Show Solr Results",
         "category": "Smart Search",
         "icon": "$(database)"
+      },
+      {
+        "command": "smart-search.saveCurrentSearchAsFilter",
+        "title": "Save Current Search as Filter",
+        "category": "Smart Search",
+        "icon": "$(save)"
+      },
+      {
+        "command": "smart-search.chooseFilterForCurrentSearch",
+        "title": "Choose Search Filter",
+        "category": "Smart Search",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "smart-search.openRefinementPanel",
+        "title": "Open Search Refinement Panel",
+        "category": "Smart Search",
+        "icon": "$(list-tree)"
       }
     ],
     "keybindings": [
@@ -157,6 +175,24 @@
           "type": "string",
           "default": "",
           "description": "Optional: full path to a custom ripgrep executable. Leave empty to use 'rg' from your system PATH."
+        },
+        "smart-search.filters.globalFilters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": [],
+          "scope": "application",
+          "description": "Named search filter presets available across all workspaces (global scope)."
+        },
+        "smart-search.filters.workspaceFilters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Named search filter presets scoped to the current workspace or folder."
         }
       }
     }

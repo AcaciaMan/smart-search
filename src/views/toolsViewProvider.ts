@@ -87,6 +87,9 @@ export class ToolsViewProvider implements vscode.WebviewViewProvider {
           contextLinesAfter:  Number(data.options.contextLinesAfter)  || 0
         };
       }
+      if (data.type === 'executeCommand' && typeof data.command === 'string') {
+        vscode.commands.executeCommand(data.command);
+      }
     });
   }
 

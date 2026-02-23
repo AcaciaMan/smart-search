@@ -98,6 +98,18 @@
             letter-spacing: -0.5px;
         }
 
+        .icon-filter {
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .icon-refine {
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--vscode-editor-font-family, monospace);
+            letter-spacing: -0.5px;
+        }
+
         /* ── Action button (click only, no toggle state) ─────────────────── */
         .action-btn {
             display: inline-flex;
@@ -316,7 +328,25 @@
                 label: 'Files'
             }
         ];
-
+        // Command buttons (fire-and-forget, live mode only) — no toggle state
+        const LIVE_COMMAND_BUTTONS = [
+            {
+                id: 'chooseFilter',
+                command: 'smart-search.chooseFilterForCurrentSearch',
+                title: 'Choose Search Filter',
+                iconClass: 'icon-filter',
+                iconText: '\u22EE',
+                label: 'Filter'
+            },
+            {
+                id: 'openRefinement',
+                command: 'smart-search.openRefinementPanel',
+                title: 'Open Search Refinement Panel',
+                iconClass: 'icon-refine',
+                iconText: '\u22F1',
+                label: 'Refine'
+            }
+        ];
         const SESSION_BUTTONS = [
             {
                 id: 'caseSensitive',
@@ -395,6 +425,34 @@
                 toolbar.appendChild(el);
 
                 // Label cell
+                const cell = document.createElement('div');
+                cell.className = 'btn-label-cell';
+                cell.innerHTML = `<span class="btn-label">${btn.label}</span>`;
+                labelsRow.appendChild(cell);
+            });
+        }
+
+        // \u2500\u2500 Command buttons (Live mode only) \u2014 pure click, no toggle \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+        if (mode === 'live' && LIVE_COMMAND_BUTTONS.length > 0) {
+            const sep2 = document.createElement('div');
+            sep2.className = 'toolbar-sep';
+            toolbar.appendChild(sep2);
+            const sep2Spacer = document.createElement('div');
+            sep2Spacer.style.width = '9px';
+            sep2Spacer.style.flexShrink = '0';
+            labelsRow.appendChild(sep2Spacer);
+
+            LIVE_COMMAND_BUTTONS.forEach(btn => {
+                const el = document.createElement('button');
+                el.className = 'action-btn';
+                el.id = 'btn_' + btn.id;
+                el.title = btn.title;
+                el.innerHTML = `<span class="${btn.iconClass}">${btn.iconText}</span>`;
+                el.addEventListener('click', () => {
+                    vscode.postMessage({ type: 'executeCommand', command: btn.command });
+                });
+                toolbar.appendChild(el);
+
                 const cell = document.createElement('div');
                 cell.className = 'btn-label-cell';
                 cell.innerHTML = `<span class="btn-label">${btn.label}</span>`;

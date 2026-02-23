@@ -5,14 +5,14 @@ Intelligent VS Code extension for contextual search with ripgrep, Solr indexing,
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
-## What's New in v2.0.2
+## What's New in v2.1.0
 
-v2.0.2 adds a **Health Check** panel so you can diagnose configuration issues at a glance.
+v2.1.0 adds **named search filter presets** and a full **Search Refinement Panel** for visually composing glob filters.
 
 | Panel | Purpose |
-|-------|---------||
+|-------|---------|
 | 🔍 **Search** | Query input and Live / Session mode switcher |
-| ⚙️ **Live Tools** | Case, Whole Word, Regex toggles for ripgrep searches |
+| ⚙️ **Live Tools** | Case, Whole Word, Regex, File Stats toggles + Filter & Refine shortcut buttons |
 | 🗄️ **Session Tools** | Case, Whole Word toggles for Solr / Session searches |
 | 🕐 **Recent Searches** | Full history + stored sessions in one place |
 | 🩺 **Health Check** | Live diagnostic panel — ripgrep & Solr status, Solr index stats, fix suggestions |
@@ -23,9 +23,11 @@ See the [Changelog](CHANGELOG.md) for the complete list of changes.
 ## Features
 
 - **Reorganized Sidebar UI**: Five dedicated panels – Search, Live Tools, Session Tools, Recent Searches, Health Check
+- **Named Filter Presets**: Save include/exclude glob patterns as named presets (global or workspace scope); reuse them instantly across searches via the Choose Filter QuickPick or Live Tools toolbar
+- **Search Refinement Panel**: Full-featured editor panel with a folder/extension tree, glob chip rows, custom glob inputs, live ripgrep-flags preview, and a Test button that runs `rg --files` against the workspace
 - **Health Check panel**: Instant diagnostic view showing ripgrep availability, Solr connectivity, index statistics, and actionable fix suggestions
 - **Dual Search Modes**: Live Search (workspace files via ripgrep) and Session Search (stored Solr results)
-- **Icon Toggle Toolbars**: Case Sensitive, Whole Word, and Regex controls live in compact icon toolbars in their own sidebar panels, keeping the main search view clean
+- **Icon Toggle Toolbars**: Case Sensitive, Whole Word, Regex, and File Stats controls in compact icon toolbars; Live Tools also has one-click **Filter** and **Refine** action buttons
 - **Recent Searches Panel**: Tabbed view showing clickable search history and stored sessions; clicking a history item fills the search box; clicking a session switches to Session mode automatically
 - **Multi-Folder Search**: Automatically searches across all workspace folders with intelligent parallel processing
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
@@ -88,6 +90,9 @@ Compact icon toolbar for **ripgrep live searches**. Toggles persist across searc
 | `Aa` | Case Sensitive | Match exact letter case |
 | `ab` | Whole Word | Match complete words only |
 | `.*` | Regex | Interpret query as a regular expression |
+| `F#` | File Stats | Next search returns per-file match counts |
+| `⋮` | **Filter** | Open the Choose Search Filter QuickPick |
+| `⋱` | **Refine** | Open the Search Refinement Panel |
 
 The status strip at the bottom of this panel shows which filters are currently active (e.g., *Active: Case · .**)
 
@@ -233,10 +238,20 @@ All search settings are automatically persisted and will be applied to new searc
 4. **Iterate**: Use the *Recent Searches* panel to reload previous queries or switch sessions
 5. **Session Management**: Open *Recent Searches* → *Sessions* tab at any time
 
+### Using Named Filter Presets
+1. Run a search and open the **Search Refinement Panel** (`⋱ Refine` button in Live Tools or command palette)
+2. Use the tree to include/exclude folders and extensions, or type custom glob patterns
+3. Click **Test globs with ripgrep** to verify which files match before committing
+4. Click **Apply & Re-run** to immediately re-run the last query with the new globs
+5. Click **Save as filter…** to persist the glob set as a named preset
+6. Use the **Filter** button (`⋮`) in Live Tools to quickly switch presets via QuickPick
+
 ### Best Practices
 - **Live Tools panel** – toggle Case/Regex before a Live Search to avoid re-running
 - **Session Tools panel** – adjust Case/Word for session refinements without losing the active session
 - **Recent Searches panel** – keep it open alongside the Search panel for quick navigation
+- **Refinement Panel** – use the Test button before Apply to avoid running an empty search
+- **Global vs Workspace presets** – save team-shared filters as Workspace presets, personal ones as Global
 - **Leverage Suggestions** for faster query composition
 - **Monitor Session Info** bar to know the scope of your current session search
 
@@ -251,6 +266,23 @@ The extension can be configured through VS Code settings:
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
 - `smart-search.maxParallelFolders`: Maximum folders for parallel search (default: 5)
 - `smart-search.enableDebugLogging`: Enable debug logging for searches (default: false)
+- `smart-search.filters.globalFilters`: Named filter presets stored in global (user) settings — array of `SearchFilterPreset` objects (application scope)
+- `smart-search.filters.workspaceFilters`: Named filter presets stored in workspace settings — array of `SearchFilterPreset` objects (resource scope)
+
+### Filter Preset Shape
+
+Each preset stored in `globalFilters` or `workspaceFilters` follows this structure:
+
+```json
+{
+  "name": "TypeScript only",
+  "includeGlobs": ["**/*.ts", "**/*.tsx"],
+  "excludeGlobs": ["**/node_modules/**"],
+  "customIncludeGlobs": [],
+  "customExcludeGlobs": ["**/dist/**"],
+  "description": "TypeScript source files, no dist or node_modules"
+}
+```
 
 ### Default Search Fields Configuration
 

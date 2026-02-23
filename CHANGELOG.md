@@ -2,6 +2,32 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.1.0] - 2026-02-23
+
+### Added
+- **Named search filter presets** — save and reuse include/exclude glob configurations across searches
+  - `smart-search.filters.globalFilters` (application-scoped) and `smart-search.filters.workspaceFilters` (resource-scoped) configuration keys store presets as JSON arrays
+  - `SearchFilterPreset` shape: `name`, `includeGlobs`, `excludeGlobs`, `customIncludeGlobs`, `customExcludeGlobs`, `description`
+- **Command: Save Current Search as Filter** (`smart-search.saveCurrentSearchAsFilter`) — saves the active glob state as a named preset; prompts for name and scope (Global / Workspace); handles name conflicts with Overwrite / Choose another name
+- **Command: Choose Search Filter** (`smart-search.chooseFilterForCurrentSearch`) — QuickPick showing all saved presets grouped by scope with a glob preview; pre-selects the currently active filter; "None" clears the active filter
+- **Command: Open Search Refinement Panel** (`smart-search.openRefinementPanel`) — full-featured editor panel for visually composing glob filters:
+  - **Left pane**: workspace folder/extension tree with tristate include/exclude/neutral buttons per node
+  - **Right pane**: include and exclude chip rows (custom globs shown with dashed border), custom glob text areas, live effective-globs list, ripgrep flags `<pre>` preview
+  - **Test globs with ripgrep**: spawns `rg --files` with the composed globs, 8-second timeout, shows up to 20 matched file paths in a result banner; highlights the offending custom-glob textarea on errors
+  - **Apply & Re-run**: pushes the refined glob state back to the Search view and re-runs the last query
+  - **Save as filter…**: delegates to `smart-search.saveCurrentSearchAsFilter`
+- **Live Tools toolbar shortcuts** — two new action buttons added after the `F#` toggle (live mode only):
+  - `⋮ Filter` — opens the Choose Search Filter QuickPick
+  - `⋱ Refine` — opens the Search Refinement Panel
+- **`CurrentSearchGlobs` type** — tracks active include/exclude/custom glob arrays and an optional active filter name/scope; attached to `SearchOptions.currentGlobs`
+- **Glob resolver** (`resolveActiveFilterGlobs`) — merges preset globs with session custom globs, deduplicates (first-occurrence), falls back gracefully if the named preset is not found
+- **In-memory preset cache** — the preset service caches per-scope filter lists; cache is invalidated on every create/update/delete and re-populated from VS Code configuration on next access
+
+### Fixed
+- `performSearch` now passes `currentGlobs` into `SearchOptions` so the glob state set in the Refinement Panel is actually applied to ripgrep; previously the glob state was stored but silently ignored during search execution
+
+---
+
 ## [2.0.2] - 2026-02-21
 
 ### Added

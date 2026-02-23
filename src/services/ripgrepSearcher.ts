@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { SearchResult, SearchOptions, FileResult } from '../types';
+import { resolveActiveFilterGlobs } from './globResolver';
 
 export class RipgrepSearcher {
   async search(options: SearchOptions): Promise<SearchResult[]> {
@@ -84,6 +85,13 @@ export class RipgrepSearcher {
   }
 
   private async searchInFolder(folderPath: string, options: SearchOptions): Promise<SearchResult[]> {
+    // Resolve active filter globs before building ripgrep args.
+    if (options.currentGlobs) {
+      const resolved = await resolveActiveFilterGlobs(options.currentGlobs);
+      options.includePatterns = resolved.includeGlobs;
+      options.excludePatterns = resolved.excludeGlobs;
+    }
+
     return new Promise((resolve, reject) => {
       const args = [
         '--json',
