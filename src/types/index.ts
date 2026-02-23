@@ -10,7 +10,6 @@ export interface SearchResult {
   content: string;
   context: string[];
   score: number;
-  summary?: string;
   highlighted_display?: string; // Highlighted content for display purposes
   submatches?: Array<{
     start: number;

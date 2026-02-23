@@ -2,6 +2,17 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.1.1] - 2026-02-23
+
+### Fixed
+- **XSS vulnerability in client-side highlight fallback** — `HighlightService.highlightText()` now HTML-escapes the raw source-code text before inserting `<mark>` tags. A private `escapeHtml()` helper is used for both the content and the search term (so that queries containing `<`, `>`, `&`, etc. still match correctly against the escaped text). Solr-highlighted paths, which return pre-tagged HTML, are unaffected.
+- **`match_count_in_file` always stored as `1`** — `IndexManager.storeSearchResults()` now pre-computes a `file → count` map before building Solr documents, so each stored result carries the true number of matches from that file in the current search session. The field is already indexed and queryable (`match_count_in_file:[5 TO *]`); no schema changes were needed.
+
+### Removed
+- **AI Summaries stub** — removed the `AISummaryService` class and all references (`src/services/aiSummaryService.ts` deleted, export removed from `src/services/index.ts`, field and constructor removed from `SmartSearchProvider`). The `smart-search.enableAISummaries` configuration property, its `"ai"` / `"summaries"` keywords, and all marketing copy referencing AI-powered summaries have been removed from `package.json`, `README.md`, and `docs/configuration.md`. The `summary?: string` field is removed from the `SearchResult` type and all rendering paths. The Solr schema fields `ai_summary` / `ai_tags` are intentionally retained for future integrations.
+
+---
+
 ## [2.1.0] - 2026-02-23
 
 ### Added

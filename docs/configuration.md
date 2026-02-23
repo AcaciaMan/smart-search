@@ -46,7 +46,6 @@ sudo dnf install ripgrep
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `smart-search.solrUrl` | `http://localhost:8983/solr` | Solr server URL |
-| `smart-search.enableAISummaries` | `true` | Enable AI-powered result summaries |
 | `smart-search.maxFiles` | `100` | Maximum files to return results from |
 | `smart-search.defaultSolrFields` | `content_all,code_all` | Default fields for simple queries |
 | `smart-search.maxParallelFolders` | `5` | Max folders to search in parallel (1-10) |
@@ -56,7 +55,6 @@ sudo dnf install ripgrep
 ```json
 {
   "smart-search.solrUrl": "http://localhost:8983/solr",
-  "smart-search.enableAISummaries": true,
   "smart-search.maxFiles": 100,
   "smart-search.defaultSolrFields": "content_all,code_all",
   "smart-search.maxParallelFolders": 5,

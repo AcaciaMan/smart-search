@@ -429,17 +429,11 @@
         if (!fileGroups.has(result.file)) {
           fileGroups.set(result.file, {
             file: result.file,
-            matches: [],
-            summary: null
+            matches: []
           });
         }
         
         fileGroups.get(result.file).matches.push(result);
-        
-        // Use the first available summary for the file
-        if (result.summary && !fileGroups.get(result.file).summary) {
-          fileGroups.get(result.file).summary = result.summary;
-        }
       });
       
       // Sort matches within each file by line number
@@ -506,7 +500,6 @@
             ${fileGroup.matches.map((result, index) => 
               getResultContent(result) + (index < fileGroup.matches.length - 1 ? '<div class="match-separator"></div>' : '')
             ).join('')}
-            ${fileGroup.summary ? `<div class="summary">${escapeHtml(fileGroup.summary)}</div>` : ''}
           </div>
         </div>
       `).join('');

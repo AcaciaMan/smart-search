@@ -28,6 +28,12 @@ export class IndexManager {
     const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
+    // Pre-compute match count per file
+    const fileMatchCounts = new Map<string, number>();
+    for (const result of results) {
+      fileMatchCounts.set(result.file, (fileMatchCounts.get(result.file) || 0) + 1);
+    }
+
     const storedResults: StoredSearchResult[] = results.map((result, index) => {
       const filePath = result.file;
       const fileName = path.basename(filePath);
@@ -89,9 +95,9 @@ export class IndexManager {
         case_sensitive: searchOptions.caseSensitive || false,
         whole_word: searchOptions.wholeWord || false,
         relevance_score: Math.round(result.score * 100), // Convert to integer score
-        match_count_in_file: 1, // We'll need to calculate this in the future
-        ai_summary: result.summary || '', // Empty string instead of undefined
-        ai_tags: result.summary ? [result.summary.split(' ').slice(0, 3).join(' ')] : [], // Empty array instead of undefined
+        match_count_in_file: fileMatchCounts.get(result.file) || 1,
+        ai_summary: '',
+        ai_tags: [],
         // Single display field for highlighting - combines all content for easy highlighting
         display_content: this.queryBuilder.createDisplayContent(result, contextBefore, contextAfter)
       };
@@ -185,7 +191,6 @@ export class IndexManager {
           content: originalContent,
           context: context,
           score: doc.score || (doc.relevance_score / 100), // Use Solr's native score or fallback to stored relevance_score
-          summary: doc.ai_summary,
           // Add the highlighted display content for the UI
           highlighted_display: highlightedDisplayContent
         };

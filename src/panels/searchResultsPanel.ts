@@ -145,7 +145,6 @@ export class SearchResultsPanel {
         <div class="file-path">${this.escapeHtml(relativePath)}</div>
         <div class="line-info">Line ${result.line}, Column ${result.column}</div>
         <div class="content">${this.escapeHtml(result.content)}</div>
-        ${result.summary ? `<div class="summary">💡 ${this.escapeHtml(result.summary)}</div>` : ''}
         <div class="result-footer">
           <div class="file-type">${fileExtension}</div>
           <div class="score">Score: ${result.score.toFixed(2)}</div>

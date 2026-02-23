@@ -1,14 +1,12 @@
 import * as vscode from 'vscode';
 import { SearchResult, SearchOptions } from '../types';
-import { IndexManager, RipgrepSearcher, AISummaryService } from '../services';
+import { IndexManager, RipgrepSearcher } from '../services';
 
 export class SmartSearchProvider {
   private ripgrepSearcher: RipgrepSearcher;
-  private aiSummaryService: AISummaryService;
 
   constructor(private indexManager: IndexManager) {
     this.ripgrepSearcher = new RipgrepSearcher();
-    this.aiSummaryService = new AISummaryService();
   }
 
   async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
@@ -46,12 +44,6 @@ export class SmartSearchProvider {
         vscode.window.showErrorMessage(`Search failed: ${error}`);
         return [];
       }
-    }
-
-    // Add AI summaries if enabled and we have results
-    const enableAISummaries = vscode.workspace.getConfiguration('smart-search').get('enableAISummaries', true);
-    if (enableAISummaries && results.length > 0) {
-      results = await this.aiSummaryService.addSummaries(results);
     }
 
     return results;

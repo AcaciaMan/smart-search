@@ -1,21 +1,17 @@
 ﻿# Smart Search
 
-Intelligent VS Code extension for contextual search with ripgrep, Solr indexing, and AI-powered summaries.
+Intelligent VS Code extension for contextual search with ripgrep and Solr indexing.
 
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
-## What's New in v2.1.0
+## What's New in v2.1.1
 
-v2.1.0 adds **named search filter presets** and a full **Search Refinement Panel** for visually composing glob filters.
+v2.1.1 is a maintenance release with two bug fixes and a cleanup.
 
-| Panel | Purpose |
-|-------|---------|
-| 🔍 **Search** | Query input and Live / Session mode switcher |
-| ⚙️ **Live Tools** | Case, Whole Word, Regex, File Stats toggles + Filter & Refine shortcut buttons |
-| 🗄️ **Session Tools** | Case, Whole Word toggles for Solr / Session searches |
-| 🕐 **Recent Searches** | Full history + stored sessions in one place |
-| 🩺 **Health Check** | Live diagnostic panel — ripgrep & Solr status, Solr index stats, fix suggestions |
+- **XSS fix** — client-side highlight fallback now HTML-escapes raw source content before injecting `<mark>` tags
+- **Accurate match counts** — `match_count_in_file` stored in Solr now reflects the real per-file match count instead of always being `1`
+- **AI Summaries removed** — the unimplemented stub and its configuration property have been cleaned up
 
 See the [Changelog](CHANGELOG.md) for the complete list of changes.
 
@@ -37,7 +33,6 @@ See the [Changelog](CHANGELOG.md) for the complete list of changes.
   - **Solr Settings**: Control result scoring, sorting, file filtering, and session management
 - **Intelligent Indexing**: Optional Solr integration for advanced search and indexing capabilities
 - **Auto-Suggestions**: Smart query suggestions based on your search history and stored results
-- **AI-Powered Summaries**: Get contextual summaries of search results (when enabled)
 - **Rich Results**: Interactive search results panel with file navigation
 - **Settings Persistence**: Search settings are automatically saved and applied to new searches
 
@@ -261,7 +256,6 @@ The extension can be configured through VS Code settings:
 
 - `smart-search.solrUrl`: Solr server URL (default: http://localhost:8983/solr)
 - `smart-search.ripgrepPath`: Optional absolute path to a custom `rg` executable; leave empty to use `rg` from the system PATH (default: "")
-- `smart-search.enableAISummaries`: Enable AI-powered summaries (default: true)
 - `smart-search.maxFiles`: Maximum number of files to return results from (default: 100)
 - `smart-search.defaultSolrFields`: Default Solr fields for simple queries (default: "content_all,code_all")
 - `smart-search.maxParallelFolders`: Maximum folders for parallel search (default: 5)

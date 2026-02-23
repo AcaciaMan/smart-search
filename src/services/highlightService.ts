@@ -114,19 +114,36 @@ export class HighlightService {
   }
 
   /**
-   * Client-side text highlighting for fallback scenarios
+   * HTML-escape a plain-text string to prevent XSS injection.
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * Client-side text highlighting for fallback scenarios.
+   * The input text is HTML-escaped before <mark> tags are inserted,
+   * so the caller must not escape it again before injecting into HTML.
    */
   public highlightText(text: string, query: string, className: string = 'highlight'): string {
     if (!query || !text) return text;
     
     // Split query into individual terms and remove operators
     const terms = this.extractSearchTerms(query);
-    let highlightedText = text;
+    // Escape the whole text FIRST so that raw HTML in source content cannot
+    // be injected into the webview (XSS fix).
+    let highlightedText = this.escapeHtml(text);
     
     terms.forEach(term => {
       if (term.length > 0) {
-        // Escape special regex characters
-        const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // HTML-escape the term before regex-escaping, because we are now
+        // matching against the already-HTML-escaped text.
+        const escapedTerm = this.escapeHtml(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`(${escapedTerm})`, 'gi');
         highlightedText = highlightedText.replace(regex, `<mark class="${className}">$1</mark>`);
       }
