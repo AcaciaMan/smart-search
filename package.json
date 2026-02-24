@@ -21,7 +21,7 @@
     "find",
     "discover"
   ],
-  "version": "2.1.1",
+  "version": "2.1.2",
   "publisher": "manacacia",
   "icon": "icon.png",
   "repository": {
@@ -200,6 +200,7 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
+    "test:integration": "set SOLR_INTEGRATION=true&& node ./out/test/runTest.js",
     "copy-resources": "xcopy /E /I /Y src\\webview dist\\webview && xcopy /E /I /Y resources dist\\resources",
     "build": "npm run package && npm run copy-resources",
     "configure-solr": "scripts\\configure-solr-highlighting.bat",

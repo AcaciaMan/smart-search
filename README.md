@@ -5,13 +5,13 @@ Intelligent VS Code extension for contextual search with ripgrep and Solr indexi
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
-## What's New in v2.1.1
+## What's New in v2.1.2
 
-v2.1.1 is a maintenance release with two bug fixes and a cleanup.
+v2.1.2 adds a comprehensive Solr integration test suite (7 test files, 90+ assertions) and the tooling to run them.
 
-- **XSS fix** — client-side highlight fallback now HTML-escapes raw source content before injecting `<mark>` tags
-- **Accurate match counts** — `match_count_in_file` stored in Solr now reflects the real per-file match count instead of always being `1`
-- **AI Summaries removed** — the unimplemented stub and its configuration property have been cleaned up
+- **Solr integration tests** — end-to-end tests covering indexing, search & query, query builder, highlighting, session management, filters & presets, and the results panel, all running against a live Solr instance
+- **`npm run test:integration`** — new script that sets `SOLR_INTEGRATION=true` to include the Solr tests; `npm test` continues to run only unit tests
+- **Shared test infrastructure** — reusable helpers for seeding/cleaning Solr data, connectivity checks, and a test-data factory with unique-ID generators
 
 See the [Changelog](CHANGELOG.md) for the complete list of changes.
 

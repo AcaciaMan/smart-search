@@ -2,6 +2,23 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.1.2] - 2026-02-24
+
+### Added
+- **Solr integration test suite** — 7 new end-to-end test files under `src/test/suite/solr-integration/` covering the full Solr pipeline against a live instance:
+  - **Indexing** (`solrIndexing`): single/multi-file indexing, context & display content, file-metadata enrichment, session ID format, search-options propagation, duplicate/idempotency, large-batch (50+), and missing-file graceful handling
+  - **Search & Query** (`solrSearch`): basic text, field-specific, filename-routing, code-pattern, boolean AND/OR, session filtering, case-sensitivity, whole-word, combined filters, detailed fields, max-results, relevance ordering, wildcards, quoted phrases, and no-results
+  - **Query Builder** (`solrQueryBuilder`): simple word, field-specific, file-extension, filename-like routing, code-pattern boost, boolean, wildcard, quoted phrase, special-character escaping, `buildSearchParams` with maxResults/session/combined filters, empty query, maxResults cap, sort order, and malformed-query error handling
+  - **Highlighting** (`solrHighlighting`): server-side `<mark>` tags, highlight params, custom tags, `applySolrHighlighting` merge, context highlighting, client-side fallback, multi-term, XSS safety, snippet generation & limits, boolean-operator stripping, field-prefix stripping, quoted-phrase, `parseHighlightedText`, and `getHighlightStats`
+  - **Session Management** (`solrSessionManager`): `getStoredQueries`, `getSearchSessions` listing & sort, `getMostRecentSessionId`, `cleanupOldSessions`, `getSuggestions` (prefix, session-scoped, short query, field-specific, no-matches, limit, priority), and error handling with invalid URL
+  - **Filters & Presets** (`solrFiltersPresets`): `FiltersConfig` save/retrieve for global and workspace scopes, normalisation (empty name, duplicates, glob coercion), multiple-filter persistence; `PresetsService` CRUD (`listAllFilters`, `createFilter`, `updateFilter`, `deleteFilter`, `findFilter`) with duplicate/empty-name validation and rename/conflict handling; filter + Solr search integration with include, exclude, and custom globs
+  - **Results Panel** (`solrResultsPanel`): panel creation, webview HTML loading, display results, data-shape validation, file-type filtering (single, dot-prefix, multiple), sorting (relevance, filename, path, line number, extension, match count), open-file message, search-with-settings, refresh, empty results, dispose/double-dispose, multiple-panel replacement, and end-to-end Solr-to-panel flow
+- **Shared test infrastructure** — `testHelpers.ts` (Solr connectivity check, seed/delete/query utilities, commit-wait helper), `testDataFactory.ts` (unique ID generators, document/session/batch factories, diverse multi-language data builder), and `constants.ts` (timeouts, prefixes, required schema fields)
+- **`test:integration` npm script** — runs the full test suite with `SOLR_INTEGRATION=true` to include Solr integration tests; standard `npm test` continues to skip them
+- **Conditional test discovery** — `src/test/suite/index.ts` now checks the `SOLR_INTEGRATION` environment variable and skips the `solr-integration/` directory when it is not set, so CI and local unit-test runs are unaffected
+
+---
+
 ## [2.1.1] - 2026-02-23
 
 ### Fixed

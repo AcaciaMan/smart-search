@@ -16,8 +16,11 @@ export function run(): Promise<void> {
 
       const testsRoot = path.resolve(__dirname, '..');
 
+      // Determine whether Solr integration tests should be included
+      const runIntegration = process.env['SOLR_INTEGRATION'] === 'true';
+
       // Simple file discovery without glob
-      const testFiles = findTestFiles(testsRoot);
+      const testFiles = findTestFiles(testsRoot, runIntegration);
       
       // Add files to the test suite
       testFiles.forEach((f: string) => mocha.addFile(f));
@@ -37,7 +40,7 @@ export function run(): Promise<void> {
   });
 }
 
-function findTestFiles(dir: string): string[] {
+function findTestFiles(dir: string, includeIntegration: boolean = false): string[] {
   const files: string[] = [];
   
   try {
@@ -48,7 +51,11 @@ function findTestFiles(dir: string): string[] {
       const stat = fs.statSync(fullPath);
       
       if (stat.isDirectory()) {
-        files.push(...findTestFiles(fullPath));
+        // Skip the solr-integration directory unless explicitly enabled
+        if (item === 'solr-integration' && !includeIntegration) {
+          continue;
+        }
+        files.push(...findTestFiles(fullPath, includeIntegration));
       } else if (item.endsWith('.test.js')) {
         files.push(fullPath);
       }
