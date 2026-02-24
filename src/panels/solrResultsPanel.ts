@@ -15,6 +15,14 @@ export class SolrResultsPanel extends BaseResultsPanel {
     excludePatterns: '',
     sessionFilter: ''
   };
+  /** Toggle options held in the panel toolbar (replaces Session Tools sidebar) */
+  private static toggleOptions: {
+    caseSensitive: boolean;
+    wholeWord: boolean;
+  } = {
+    caseSensitive: false,
+    wholeWord: false
+  };
 
   constructor(extensionUri: vscode.Uri) {
     super(extensionUri, 'solrSearchResults', 'Solr Search Results');
@@ -37,6 +45,14 @@ export class SolrResultsPanel extends BaseResultsPanel {
           break;
         case 'showError':
           vscode.window.showErrorMessage(message.message);
+          break;
+        case 'toggleOptionsChanged':
+          if (message.options) {
+            SolrResultsPanel.toggleOptions = {
+              caseSensitive: !!message.options.caseSensitive,
+              wholeWord:     !!message.options.wholeWord,
+            };
+          }
           break;
       }
     });
@@ -159,6 +175,11 @@ export class SolrResultsPanel extends BaseResultsPanel {
         command: 'updateSettings',
         settings: SolrResultsPanel.persistedSettings
       });
+      // Sync toggle state to the toolbar
+      this._panel.webview.postMessage({
+        command: 'setToggleOptions',
+        options: SolrResultsPanel.toggleOptions
+      });
     }, 100);
     
     this.reveal();
@@ -171,6 +192,14 @@ export class SolrResultsPanel extends BaseResultsPanel {
 
   public static getPersistedSettings() {
     return SolrResultsPanel.persistedSettings;
+  }
+
+  /**
+   * Get the current toggle options (Case, Word).
+   * Replaces reading from the old Session Tools sidebar.
+   */
+  public static getToggleOptions(): Readonly<typeof SolrResultsPanel.toggleOptions> {
+    return { ...SolrResultsPanel.toggleOptions };
   }
 
   public static clearPersistedSettings() {

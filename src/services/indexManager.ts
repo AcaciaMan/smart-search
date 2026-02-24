@@ -327,7 +327,7 @@ export class IndexManager {
     return this.sessionManager.cleanupOldSessions(daysOld);
   }
 
-  async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10): Promise<string[]> {
-    return this.sessionManager.getSuggestions(partialQuery, sessionId, limit);
+  async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10, mode: string = 'live'): Promise<string[]> {
+    return this.sessionManager.getSuggestions(partialQuery, sessionId, limit, mode);
   }
 }

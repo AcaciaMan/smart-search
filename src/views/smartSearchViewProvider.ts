@@ -9,7 +9,6 @@ import { SolrResultsPanel } from '../panels/solrResultsPanel';
 import { FileStatisticsPanel } from '../panels/fileStatisticsPanel';
 import { RipgrepSearcher } from '../services/ripgrepSearcher';
 import { RecentSearchViewProvider } from './recentSearchViewProvider';
-import { ToolsViewProvider } from './toolsViewProvider';
 
 const DEFAULT_GLOB_STATE: CurrentSearchGlobs = {
   includeGlobs: [],
@@ -37,8 +36,6 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly recentSearchViewProvider?: RecentSearchViewProvider,
-    private readonly liveToolsProvider?: ToolsViewProvider,
-    private readonly sessionToolsProvider?: ToolsViewProvider
   ) {
     const indexManager = new IndexManager();
     this.searchProvider = new SmartSearchProvider(indexManager);
@@ -79,7 +76,7 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           this.clearPersistedSettings();
           break;
         case 'getSuggestions':
-          await this.getSuggestions(data.query, data.sessionId);
+          await this.getSuggestions(data.query, data.sessionId, data.mode);
           break;
         case 'revealRecentView':
           // Focus the Recent Searches sidebar view
@@ -193,16 +190,17 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async getSuggestions(query: string, sessionId?: string) {
+  private async getSuggestions(query: string, sessionId?: string, mode?: string) {
     if (!this._view) {
       return;
     }
 
     try {
       const indexManager = new IndexManager();
-      // Always prioritize the latest session ID if no specific session is provided
-      const targetSessionId = sessionId || this.latestSessionId;
-      const suggestions = await indexManager.getSuggestions(query, targetSessionId);
+      const searchMode = mode || 'live';
+      // For session mode, use provided sessionId or latest; for live mode, no session filter
+      const targetSessionId = searchMode === 'session' ? (sessionId || this.latestSessionId) : undefined;
+      const suggestions = await indexManager.getSuggestions(query, targetSessionId, 10, searchMode);
       
       this._view.webview.postMessage({
         type: 'suggestions',
@@ -251,13 +249,13 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         // Get persisted settings from RipgrepResultsPanel if available
         const persistedSettings = RipgrepResultsPanel.getPersistedSettings();
 
-        // Read live-search toggle options from the Live Tools sidebar view
-        const liveOpts = this.liveToolsProvider?.getOptions();
+        // Read live-search toggle options from the Ripgrep Results panel toolbar
+        const liveOpts = RipgrepResultsPanel.getToggleOptions();
 
         // ── File Statistics Mode ────────────────────────────────────────────
         // When the F# toggle is active, run a files-only ripgrep search and
         // open the File Search Statistics panel instead of the normal results.
-        if (liveOpts?.fileStatsMode) {
+        if (liveOpts.fileStatsMode) {
           const fileSearchOptions = {
             query,
             caseSensitive: liveOpts.caseSensitive,
@@ -280,14 +278,14 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
-        // Merge: persisted panel settings win, then Live Tools toggles
-        // Live Tools context lines: -B/-A override -C for their respective direction; 0 = use default
-        const liveCtxBefore = (liveOpts?.contextLinesBefore || 0) > 0
-          ? liveOpts!.contextLinesBefore
-          : (liveOpts?.contextLines || 0) > 0 ? liveOpts!.contextLines : 0;
-        const liveCtxAfter = (liveOpts?.contextLinesAfter || 0) > 0
-          ? liveOpts!.contextLinesAfter
-          : (liveOpts?.contextLines || 0) > 0 ? liveOpts!.contextLines : 0;
+        // Merge: persisted panel settings win, then panel toolbar toggles
+        // Toolbar context lines: -B/-A override -C for their respective direction; 0 = use default
+        const liveCtxBefore = (liveOpts.contextLinesBefore || 0) > 0
+          ? liveOpts.contextLinesBefore
+          : (liveOpts.contextLines || 0) > 0 ? liveOpts.contextLines : 0;
+        const liveCtxAfter = (liveOpts.contextLinesAfter || 0) > 0
+          ? liveOpts.contextLinesAfter
+          : (liveOpts.contextLines || 0) > 0 ? liveOpts.contextLines : 0;
 
         const cg = this.currentGlobState;
         const hasActiveGlobs = cg.includeGlobs.length > 0 ||
@@ -303,9 +301,9 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
           contextLinesAfter: persistedSettings?.contextLinesAfter || liveCtxAfter || options.contextLinesAfter || 10,
           includePatterns: persistedSettings?.includePatterns || options.includePatterns,
           excludePatterns: persistedSettings?.excludePatterns || options.excludePatterns,
-          caseSensitive: persistedSettings?.caseSensitive ?? liveOpts?.caseSensitive ?? false,
-          wholeWord:     persistedSettings?.wholeWord     ?? liveOpts?.wholeWord     ?? false,
-          useRegex:      persistedSettings?.useRegex      ?? liveOpts?.useRegex      ?? false,
+          caseSensitive: persistedSettings?.caseSensitive ?? liveOpts.caseSensitive ?? false,
+          wholeWord:     persistedSettings?.wholeWord     ?? liveOpts.wholeWord     ?? false,
+          useRegex:      persistedSettings?.useRegex      ?? liveOpts.useRegex      ?? false,
           searchInResults: options.searchInResults || false,
           // Pass currentGlobs so ripgrepSearcher resolves and applies them.
           // Only set when non-empty to avoid overriding persistedSettings patterns
@@ -357,18 +355,38 @@ export class SmartSearchViewProvider implements vscode.WebviewViewProvider {
         // Get persisted settings and merge with current options
         const persistedSettings = SolrResultsPanel.getPersistedSettings();
 
-        // Read session-search toggle options from the Session Tools sidebar view
-        const sessionOpts = this.sessionToolsProvider?.getOptions();
+        // Read session-search toggle options from the Solr Results panel toolbar
+        const sessionOpts = SolrResultsPanel.getToggleOptions();
 
         const mergedOptions = {
           query,  // Solr needs the query to search for
           ...options,
-          caseSensitive: sessionOpts?.caseSensitive ?? options.caseSensitive ?? false,
-          wholeWord:     sessionOpts?.wholeWord     ?? options.wholeWord     ?? false,
+          // Do NOT pass caseSensitive / wholeWord to Solr fq filters – the
+          // indexed documents don't reliably carry these boolean fields.
+          // Instead we apply them as post-query filtering below.
+          caseSensitive: undefined,
+          wholeWord:     undefined,
           maxResults: persistedSettings.maxResults || 1000, // Large default for Solr
         };
         
         let storedResults = await indexManager.searchStoredResultsDetailed(mergedOptions, this.latestSessionId);
+
+        // ── Post-query filtering for Case Sensitive / Whole Word toggles ──
+        if (sessionOpts.caseSensitive && query) {
+          storedResults = storedResults.filter(r => {
+            const text = r.match_text || r.match_text_raw || r.full_line || '';
+            return text.includes(query);
+          });
+        }
+
+        if (sessionOpts.wholeWord && query) {
+          const wordRegex = new RegExp(`\\b${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+            sessionOpts.caseSensitive ? '' : 'i');
+          storedResults = storedResults.filter(r => {
+            const text = r.match_text || r.match_text_raw || r.full_line || '';
+            return wordRegex.test(text);
+          });
+        }
         
         // Apply additional filtering if settings exist
         if (persistedSettings.minScore > 0) {

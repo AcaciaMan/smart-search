@@ -140,214 +140,254 @@ export class SolrSessionManager {
   }
 
   /**
-   * Get auto-suggestions based on indexed terms, always prioritizing the last session data
+   * Get auto-suggestions based on search mode.
+   * - 'live' mode: suggests from ALL indexed documents across all sessions (cross-session)
+   * - 'session' mode: suggests only from the specified session's documents
    */
-  async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10): Promise<string[]> {
+  async getSuggestions(partialQuery: string, sessionId?: string, limit: number = 10, mode: string = 'live'): Promise<string[]> {
     if (!partialQuery || partialQuery.length < 2) {
       return [];
     }
 
+    console.log(`Getting suggestions for query: "${partialQuery}", mode: ${mode}, sessionId: ${sessionId || 'none'}`);
+
+    if (mode === 'session') {
+      return this.getSessionSuggestions(partialQuery, sessionId, limit);
+    } else {
+      return this.getLiveSuggestions(partialQuery, limit);
+    }
+  }
+
+  /**
+   * Live search suggestions: query ALL indexed documents across all sessions.
+   * Extracts rich suggestions (words, phrases, file names, paths, original queries)
+   * from the entire Solr collection without any session filter.
+   */
+  private async getLiveSuggestions(partialQuery: string, limit: number): Promise<string[]> {
+    try {
+      const suggestions = new Set<string>();
+
+      // PRIORITY 1: Rich extraction from cross-session documents
+      try {
+        const escapedQuery = partialQuery.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, '\\$&');
+        console.log(`[Live] Querying all indexed documents for: "${partialQuery}"`);
+
+        const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
+          params: {
+            'q': `match_text:${escapedQuery.toLowerCase()}* OR file_name:*${escapedQuery.toLowerCase()}* OR original_query:*${escapedQuery.toLowerCase()}*`,
+            'fl': 'match_text,file_name,file_path,original_query',
+            'rows': 200,
+            'sort': 'search_timestamp desc',
+            'wt': 'json'
+          }
+        });
+
+        console.log(`[Live] Cross-session query returned ${response.data?.response?.docs?.length || 0} documents`);
+
+        if (response.data?.response?.docs) {
+          this.extractSuggestionsFromDocs(response.data.response.docs, partialQuery, suggestions);
+        }
+      } catch (crossSessionError) {
+        console.error('[Live] Cross-session query failed:', crossSessionError);
+      }
+
+      // PRIORITY 2: Terms component for additional word-level suggestions
+      const remainingLimit = Math.max(0, limit - suggestions.size);
+      if (remainingLimit > 0) {
+        try {
+          const escapedQuery = partialQuery.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, '\\$&');
+          const termsResponse = await axios.get(`${this.solrUrl}/smart-search-results/terms`, {
+            params: {
+              'terms.fl': 'match_text',
+              'terms.prefix': escapedQuery.toLowerCase(),
+              'terms.limit': remainingLimit * 2,
+              'terms.raw': 'true',
+              'wt': 'json'
+            }
+          });
+
+          if (termsResponse.data?.terms?.match_text) {
+            const terms = termsResponse.data.terms.match_text;
+            for (let i = 0; i < terms.length; i += 2) {
+              const term = terms[i];
+              if (term && typeof term === 'string' && term.toLowerCase().startsWith(partialQuery.toLowerCase()) && !suggestions.has(term)) {
+                suggestions.add(term);
+              }
+            }
+          }
+        } catch (termsError) {
+          console.error('[Live] Terms handler failed:', termsError);
+        }
+      }
+
+      // PRIORITY 3: Field-specific suggestions (e.g. file_extension:ts)
+      if (partialQuery.includes(':')) {
+        try {
+          const [field, value] = partialQuery.split(':', 2);
+          if (value && value.length > 1) {
+            const fieldSuggestions = await this.getFieldSuggestions(field.trim(), value.trim(), Math.max(0, limit - suggestions.size));
+            fieldSuggestions.forEach(s => suggestions.add(`${field}:${s}`));
+          }
+        } catch (fieldError) {
+          console.error('[Live] Error getting field suggestions:', fieldError);
+        }
+      }
+
+      return this.sortAndLimit(Array.from(suggestions), partialQuery, limit);
+
+    } catch (error) {
+      console.error('[Live] Error getting suggestions:', error);
+      this.logAxiosError(error);
+      return [];
+    }
+  }
+
+  /**
+   * Session search suggestions: query only the specified session's documents.
+   * Extracts rich suggestions (words, phrases, file names, paths) scoped to that session.
+   */
+  private async getSessionSuggestions(partialQuery: string, sessionId?: string, limit: number = 10): Promise<string[]> {
     // If no sessionId provided, use the most recent session
     if (!sessionId) {
       const mostRecentSessionId = await this.getMostRecentSessionId();
       if (mostRecentSessionId) {
         sessionId = mostRecentSessionId;
-        console.log(`No sessionId provided for suggestions, using most recent session: ${sessionId}`);
+        console.log(`[Session] No sessionId provided, using most recent: ${sessionId}`);
+      } else {
+        console.log('[Session] No session available for suggestions');
+        return [];
       }
     }
 
-    console.log(`Getting suggestions for query: "${partialQuery}", sessionId: ${sessionId || 'none'}`);
-
     try {
-      const sessionSuggestions = new Set<string>();
-      const globalSuggestions = new Set<string>();
+      const suggestions = new Set<string>();
 
-      // PRIORITY 1: Always check session data first if available
-      if (sessionId) {
-        try {
-          console.log(`Querying session data for sessionId: ${sessionId}`);
-          const sessionParams = {
-            'q': `search_session_id:"${sessionId}"`, // Quote the session ID to handle special characters
+      try {
+        console.log(`[Session] Querying session data for sessionId: ${sessionId}`);
+        const response = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
+          params: {
+            'q': `search_session_id:"${sessionId}"`,
             'fl': 'match_text,file_name,file_path,original_query',
             'rows': 200,
             'wt': 'json'
-          };
-          console.log('Session query params:', sessionParams);
-          
-          const sessionResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-            params: sessionParams
-          });
-
-          console.log(`Session query returned ${sessionResponse.data?.response?.docs?.length || 0} documents`);
-
-          if (sessionResponse.data?.response?.docs) {
-            sessionResponse.data.response.docs.forEach((doc: any) => {
-              // Extract words from match_text that match the partial query
-              if (doc.match_text && typeof doc.match_text === 'string') {
-                const words = doc.match_text.match(/\b[\w"']+/g) || []; // Include quoted phrases
-                words.forEach((word: string) => {
-                  const cleanWord = word.replace(/^["']|["']$/g, ''); // Remove surrounding quotes
-                  if (cleanWord.toLowerCase().startsWith(partialQuery.toLowerCase()) && cleanWord.length > partialQuery.length) {
-                    sessionSuggestions.add(cleanWord);
-                  }
-                  // Also suggest with quotes for exact matches
-                  if (partialQuery.startsWith('"') && cleanWord.toLowerCase().includes(partialQuery.slice(1).toLowerCase())) {
-                    sessionSuggestions.add(`"${cleanWord}"`);
-                  }
-                });
-
-                // Look for multi-word phrases in match_text
-                const phraseMatches = doc.match_text.match(new RegExp(`\\b\\w*${partialQuery.toLowerCase()}\\w*\\b`, 'gi')) || [];
-                phraseMatches.forEach((phrase: string) => {
-                  if (phrase.length > partialQuery.length) {
-                    sessionSuggestions.add(phrase);
-                  }
-                });
-              }
-              
-              // Prioritize file names and paths from session
-              if (doc.file_name && typeof doc.file_name === 'string' && doc.file_name.toLowerCase().includes(partialQuery.toLowerCase())) {
-                sessionSuggestions.add(doc.file_name);
-              }
-              
-              // Include path components
-              if (doc.file_path && typeof doc.file_path === 'string') {
-                const pathParts = doc.file_path.split(/[/\\]/).filter((part: string) => 
-                  part && typeof part === 'string' && part.toLowerCase().includes(partialQuery.toLowerCase()) && part.length > partialQuery.length
-                );
-                pathParts.forEach((part: string) => sessionSuggestions.add(part));
-              }
-
-              // Include the original query if it matches
-              if (doc.original_query && typeof doc.original_query === 'string' && doc.original_query.toLowerCase().includes(partialQuery.toLowerCase())) {
-                sessionSuggestions.add(doc.original_query);
-              }
-            });
           }
-        } catch (sessionError) {
-          console.error('Error querying session data:', sessionError);
-          if (axios.isAxiosError(sessionError)) {
-            console.error('Session query error details:');
-            console.error('- Status:', sessionError.response?.status);
-            console.error('- Status text:', sessionError.response?.statusText);
-            console.error('- Response data:', sessionError.response?.data);
-            console.error('- Request URL:', sessionError.config?.url);
-            console.error('- Request params:', sessionError.config?.params);
-          }
-          // Continue with other suggestion sources
+        });
+
+        console.log(`[Session] Query returned ${response.data?.response?.docs?.length || 0} documents`);
+
+        if (response.data?.response?.docs) {
+          this.extractSuggestionsFromDocs(response.data.response.docs, partialQuery, suggestions);
         }
+      } catch (sessionError) {
+        console.error('[Session] Error querying session data:', sessionError);
+        this.logAxiosError(sessionError);
       }
 
-      // PRIORITY 2: Get global suggestions from terms component (only if we need more)
-      const remainingLimit = Math.max(0, limit - sessionSuggestions.size);
-      if (remainingLimit > 0) {
-        try {
-          console.log(`Querying terms for: "${partialQuery}"`);
-          // Escape special characters in the partial query for Solr
-          const escapedQuery = partialQuery.replace(/[+\-&|!(){}\[\]^"~*?:\\\/]/g, '\\$&');
-          const termsParams = {
-            'terms.fl': 'match_text',
-            'terms.prefix': escapedQuery.toLowerCase(),
-            'terms.limit': remainingLimit * 2,
-            'terms.raw': 'true',
-            'wt': 'json'
-          };
-          console.log('Terms query params:', termsParams);
-          
-          // Try terms handler first, fall back to regular search if it fails
-          const termsResponse = await axios.get(`${this.solrUrl}/smart-search-results/terms`, {
-            params: termsParams
-          });
-
-          if (termsResponse.data?.terms?.match_text) {
-            const terms = termsResponse.data.terms.match_text;
-            console.log(`Terms query returned ${terms.length / 2} terms`);
-            // Terms come as [term1, count1, term2, count2, ...]
-            for (let i = 0; i < terms.length; i += 2) {
-              const term = terms[i];
-              if (term && typeof term === 'string' && term.toLowerCase().startsWith(partialQuery.toLowerCase())) {
-                // Only add if not already in session suggestions
-                if (!sessionSuggestions.has(term)) {
-                  globalSuggestions.add(term);
-                }
-              }
-            }
-          }
-        } catch (termsError) {
-          console.error('Terms handler failed, trying fallback search:', termsError);
-          // Fallback to regular wildcard search if terms handler not available
-          try {
-            const fallbackResponse = await axios.get(`${this.solrUrl}/smart-search-results/select`, {
-              params: {
-                'q': `match_text:${partialQuery.toLowerCase()}*`,
-                'rows': remainingLimit,
-                'fl': 'match_text',
-                'wt': 'json'
-              }
-            });
-            
-            if (fallbackResponse.data?.response?.docs) {
-              fallbackResponse.data.response.docs.forEach((doc: any) => {
-                if (doc.match_text && typeof doc.match_text === 'string' && !sessionSuggestions.has(doc.match_text)) {
-                  globalSuggestions.add(doc.match_text);
-                }
-              });
-            }
-          } catch (fallbackError) {
-            console.error('Fallback search also failed:', fallbackError);
-          }
-        }
-      }
-
-      // PRIORITY 3: Field-specific suggestions (lower priority)
+      // Field-specific suggestions scoped to session
       if (partialQuery.includes(':')) {
         try {
           const [field, value] = partialQuery.split(':', 2);
           if (value && value.length > 1) {
-            console.log(`Getting field suggestions for field: ${field}, value: ${value}`);
-            const fieldSuggestions = await this.getFieldSuggestions(field.trim(), value.trim(), Math.max(0, limit - sessionSuggestions.size - globalSuggestions.size));
-            fieldSuggestions.forEach(suggestion => {
-              const fullSuggestion = `${field}:${suggestion}`;
-              if (!sessionSuggestions.has(fullSuggestion)) {
-                globalSuggestions.add(fullSuggestion);
-              }
-            });
+            const fieldSuggestions = await this.getFieldSuggestions(field.trim(), value.trim(), Math.max(0, limit - suggestions.size));
+            fieldSuggestions.forEach(s => suggestions.add(`${field}:${s}`));
           }
         } catch (fieldError) {
-          console.error('Error getting field suggestions:', fieldError);
+          console.error('[Session] Error getting field suggestions:', fieldError);
         }
       }
 
-      // Combine suggestions with session data first (highest priority)
-      const finalSuggestions = [
-        ...Array.from(sessionSuggestions),
-        ...Array.from(globalSuggestions)
-      ];
-
-      return finalSuggestions
-        .sort((a, b) => {
-          // Prioritize exact prefix matches
-          const aExact = a.toLowerCase().startsWith(partialQuery.toLowerCase());
-          const bExact = b.toLowerCase().startsWith(partialQuery.toLowerCase());
-          if (aExact && !bExact) return -1;
-          if (!aExact && bExact) return 1;
-          
-          // Then sort by length (shorter matches first)
-          return a.length - b.length;
-        })
-        .slice(0, limit);
+      return this.sortAndLimit(Array.from(suggestions), partialQuery, limit);
 
     } catch (error) {
-      console.error('Error getting suggestions:', error);
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error details:');
-        console.error('- Status:', error.response?.status);
-        console.error('- Status text:', error.response?.statusText);
-        console.error('- Response data:', error.response?.data);
-        console.error('- Request URL:', error.config?.url);
-        console.error('- Request params:', error.config?.params);
-      }
+      console.error('[Session] Error getting suggestions:', error);
+      this.logAxiosError(error);
       return [];
+    }
+  }
+
+  /**
+   * Extract rich suggestions from Solr documents (shared logic for both modes).
+   * Extracts words, multi-word phrases, file names, path components, and original queries.
+   */
+  private extractSuggestionsFromDocs(docs: any[], partialQuery: string, suggestions: Set<string>): void {
+    const lowerQuery = partialQuery.toLowerCase();
+
+    docs.forEach((doc: any) => {
+      // Extract words from match_text
+      if (doc.match_text && typeof doc.match_text === 'string') {
+        const words = doc.match_text.match(/\b[\w"']+/g) || [];
+        words.forEach((word: string) => {
+          const cleanWord = word.replace(/^["']|["']$/g, '');
+          if (cleanWord.toLowerCase().startsWith(lowerQuery) && cleanWord.length > partialQuery.length) {
+            suggestions.add(cleanWord);
+          }
+          // Suggest with quotes for exact matches
+          if (partialQuery.startsWith('"') && cleanWord.toLowerCase().includes(partialQuery.slice(1).toLowerCase())) {
+            suggestions.add(`"${cleanWord}"`);
+          }
+        });
+
+        // Multi-word phrase matches
+        try {
+          const escapedForRegex = lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const phraseMatches = doc.match_text.match(new RegExp(`\\b\\w*${escapedForRegex}\\w*\\b`, 'gi')) || [];
+          phraseMatches.forEach((phrase: string) => {
+            if (phrase.length > partialQuery.length) {
+              suggestions.add(phrase);
+            }
+          });
+        } catch {
+          // Skip if regex construction fails for unusual input
+        }
+      }
+
+      // File names
+      if (doc.file_name && typeof doc.file_name === 'string' && doc.file_name.toLowerCase().includes(lowerQuery)) {
+        suggestions.add(doc.file_name);
+      }
+
+      // Path components
+      if (doc.file_path && typeof doc.file_path === 'string') {
+        const pathParts = doc.file_path.split(/[/\\]/).filter((part: string) =>
+          part && typeof part === 'string' && part.toLowerCase().includes(lowerQuery) && part.length > partialQuery.length
+        );
+        pathParts.forEach((part: string) => suggestions.add(part));
+      }
+
+      // Original queries
+      if (doc.original_query && typeof doc.original_query === 'string' && doc.original_query.toLowerCase().includes(lowerQuery)) {
+        suggestions.add(doc.original_query);
+      }
+    });
+  }
+
+  /**
+   * Sort suggestions: exact prefix matches first, then by length (shorter first).
+   */
+  private sortAndLimit(suggestions: string[], partialQuery: string, limit: number): string[] {
+    const lowerQuery = partialQuery.toLowerCase();
+    return suggestions
+      .sort((a, b) => {
+        const aExact = a.toLowerCase().startsWith(lowerQuery);
+        const bExact = b.toLowerCase().startsWith(lowerQuery);
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return a.length - b.length;
+      })
+      .slice(0, limit);
+  }
+
+  /**
+   * Log Axios error details for debugging.
+   */
+  private logAxiosError(error: unknown): void {
+    if (axios.isAxiosError(error)) {
+      console.error('Axios error details:');
+      console.error('- Status:', error.response?.status);
+      console.error('- Status text:', error.response?.statusText);
+      console.error('- Response data:', error.response?.data);
+      console.error('- Request URL:', error.config?.url);
+      console.error('- Request params:', error.config?.params);
     }
   }
 

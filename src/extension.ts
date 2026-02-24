@@ -5,7 +5,6 @@ import { RipgrepResultsPanel } from './panels/ripgrepResultsPanel';
 import { SolrResultsPanel } from './panels/solrResultsPanel';
 import { SmartSearchViewProvider } from './views/smartSearchViewProvider';
 import { RecentSearchViewProvider } from './views/recentSearchViewProvider';
-import { ToolsViewProvider } from './views/toolsViewProvider';
 import { ConfigCheckViewProvider } from './views/configCheckViewProvider';
 import { createFilter, updateFilter, listAllFilters } from './services';
 import { SearchFilterPreset } from './services/filtersConfig';
@@ -17,24 +16,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   const indexManager = new IndexManager();
   const searchProvider = new SmartSearchProvider(indexManager);
-
-  // ── Register Live Tools sidebar view ───────────────────────────────────────
-  const liveToolsProvider = new ToolsViewProvider(context.extensionUri, 'live');
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      ToolsViewProvider.liveViewType,
-      liveToolsProvider
-    )
-  );
-
-  // ── Register Session Tools sidebar view ────────────────────────────────────
-  const sessionToolsProvider = new ToolsViewProvider(context.extensionUri, 'session');
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      ToolsViewProvider.sessionViewType,
-      sessionToolsProvider
-    )
-  );
 
   // ── Register the Recent Searches sidebar view ──────────────────────────────
   const recentSearchViewProvider = new RecentSearchViewProvider(context.extensionUri);
@@ -59,8 +40,6 @@ export function activate(context: vscode.ExtensionContext) {
   const searchViewProvider = new SmartSearchViewProvider(
     context.extensionUri,
     recentSearchViewProvider,
-    liveToolsProvider,
-    sessionToolsProvider
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(

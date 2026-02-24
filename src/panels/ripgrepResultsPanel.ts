@@ -9,6 +9,25 @@ import { StatisticsPanel } from './statisticsPanel';
 export class RipgrepResultsPanel extends BaseResultsPanel {
   public static currentPanel: RipgrepResultsPanel | undefined;
   private static persistedSettings: SearchOptions | undefined;
+  /** Toggle options held in the panel toolbar (replaces Live Tools sidebar) */
+  private static toggleOptions: {
+    caseSensitive: boolean;
+    wholeWord: boolean;
+    useRegex: boolean;
+    fileStatsMode: boolean;
+    contextLines: number;
+    contextLinesBefore: number;
+    contextLinesAfter: number;
+  } = {
+    caseSensitive: false,
+    wholeWord: false,
+    useRegex: false,
+    fileStatsMode: false,
+    contextLines: 0,
+    contextLinesBefore: 10,
+    contextLinesAfter: 10
+  };
+
   private ripgrepSearcher: RipgrepSearcher;
   private currentQuery: string = '';
   private currentResults: SearchResult[] = [];
@@ -40,6 +59,14 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
     RipgrepResultsPanel.persistedSettings = undefined;
   }
 
+  /**
+   * Get the current toggle options (Case, Word, Regex, F#, context lines).
+   * Replaces reading from the old Live Tools sidebar.
+   */
+  public static getToggleOptions(): Readonly<typeof RipgrepResultsPanel.toggleOptions> {
+    return { ...RipgrepResultsPanel.toggleOptions };
+  }
+
   public static create(extensionUri: vscode.Uri): RipgrepResultsPanel {
     if (RipgrepResultsPanel.currentPanel) {
       RipgrepResultsPanel.currentPanel.dispose();
@@ -63,6 +90,25 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
             break;
           case 'showStatistics':
             this.showStatistics();
+            break;
+          case 'toggleOptionsChanged':
+            // Update static toggle state from the toolbar
+            if (message.options) {
+              RipgrepResultsPanel.toggleOptions = {
+                caseSensitive:      !!message.options.caseSensitive,
+                wholeWord:          !!message.options.wholeWord,
+                useRegex:           !!message.options.useRegex,
+                fileStatsMode:      !!message.options.fileStatsMode,
+                contextLines:       Number(message.options.contextLines) || 0,
+                contextLinesBefore: Number(message.options.contextLinesBefore) || 0,
+                contextLinesAfter:  Number(message.options.contextLinesAfter) || 0,
+              };
+            }
+            break;
+          case 'executeCommand':
+            if (typeof message.commandId === 'string') {
+              vscode.commands.executeCommand(message.commandId);
+            }
             break;
         }
       },
@@ -155,6 +201,11 @@ export class RipgrepResultsPanel extends BaseResultsPanel {
     this._panel.webview.postMessage({
       command: 'updateResults',
       data: { results, query, settings: this.currentSettings }
+    });
+    // Sync toggle state to the toolbar
+    this._panel.webview.postMessage({
+      command: 'setToggleOptions',
+      options: RipgrepResultsPanel.toggleOptions
     });
     this.reveal();
   }

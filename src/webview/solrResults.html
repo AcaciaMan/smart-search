@@ -297,9 +297,73 @@
     .collapse-icon.expanded {
       transform: rotate(90deg);
     }
+
+    /* ── Search-option toggle toolbar ────────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      margin-bottom: 10px;
+    }
+    .toolbar-label {
+      font-size: 0.78em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--vscode-descriptionForeground);
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--vscode-editor-font-family, monospace);
+      padding: 0 4px;
+      transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .toggle-btn:hover {
+      background-color: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-widget-border);
+      color: var(--vscode-foreground);
+    }
+    .toggle-btn.active {
+      background-color: var(--vscode-inputOption-activeBackground, rgba(0,120,212,0.2));
+      border-color: var(--vscode-inputOption-activeBorder, var(--vscode-button-background));
+      color: var(--vscode-inputOption-activeForeground, var(--vscode-button-background));
+    }
+    .toolbar-summary {
+      font-size: 0.75em;
+      color: var(--vscode-descriptionForeground);
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .toolbar-summary.has-active {
+      color: var(--vscode-inputValidation-infoForeground);
+    }
   </style>
 </head>
 <body>
+  <!-- ── Search-option toolbar (replaces Session Tools sidebar) ──────── -->
+  <div class="toolbar" id="options-toolbar">
+    <span class="toolbar-label">Options</span>
+    <button class="toggle-btn" id="btn-case" title="Case Sensitive">Aa</button>
+    <button class="toggle-btn" id="btn-word" title="Whole Word" style="border-bottom:1.5px solid currentColor">ab</button>
+    <span class="toolbar-summary" id="toolbar-summary"></span>
+  </div>
+
   <div class="header">
     <h2>
       <span class="solr-badge">SOLR</span>
@@ -370,6 +434,48 @@
       const vscode = acquireVsCodeApi();
       let currentQuery = '';
       let currentSessionId = '';
+
+      // ── Toggle-option state (replaces Session Tools sidebar) ──────────
+      const toggleState = {
+        caseSensitive: false,
+        wholeWord: false
+      };
+
+      document.getElementById('btn-case').addEventListener('click', function() { toggleOpt('caseSensitive', this); });
+      document.getElementById('btn-word').addEventListener('click', function() { toggleOpt('wholeWord', this); });
+
+      function toggleOpt(id, el) {
+        toggleState[id] = !toggleState[id];
+        el.classList.toggle('active', toggleState[id]);
+        vscode.postMessage({ command: 'toggleOptionsChanged', options: { ...toggleState } });
+        updateToolbarSummary();
+      }
+
+      function updateToolbarSummary() {
+        const parts = [];
+        if (toggleState.caseSensitive) parts.push('Case');
+        if (toggleState.wholeWord) parts.push('Word');
+        const summary = document.getElementById('toolbar-summary');
+        if (parts.length) {
+          summary.textContent = parts.join(' \u00B7 ');
+          summary.className = 'toolbar-summary has-active';
+        } else {
+          summary.textContent = '';
+          summary.className = 'toolbar-summary';
+        }
+      }
+
+      function applyIncomingToggleState(opts) {
+        if (!opts) return;
+        Object.assign(toggleState, opts);
+        const el1 = document.getElementById('btn-case');
+        if (el1) el1.classList.toggle('active', !!toggleState.caseSensitive);
+        const el2 = document.getElementById('btn-word');
+        if (el2) el2.classList.toggle('active', !!toggleState.wholeWord);
+        updateToolbarSummary();
+      }
+
+      updateToolbarSummary();
       
       // Add event delegation for result headers
       document.addEventListener('click', (event) => {
@@ -727,6 +833,9 @@
             searchSettings = { ...searchSettings, ...message.settings };
             updateSettingsUI();
           }
+          break;
+        case 'setToggleOptions':
+          applyIncomingToggleState(message.options);
           break;
       }
     });

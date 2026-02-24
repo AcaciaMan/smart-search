@@ -2,6 +2,20 @@
 
 All notable changes to the "smart-search" extension will be documented in this file.
 
+## [2.1.3] - 2026-02-24
+
+### Changed
+- **Removed Live Tools and Session Tools sidebar views** — the `Aa` (Case Sensitive), `ab` (Whole Word), `.*` (Regex), `F#` (File Stats), `⋮ Filter`, and `⋱ Refine` toggle controls have been moved into the Ripgrep Results and Solr Results editor panel toolbars, reducing sidebar clutter from four sections to two (Search and Recent Searches, plus Health Check)
+- **`ToolsViewProvider` deleted** — the `src/views/toolsViewProvider.ts` file, the `toolsView.html` webview, and the `smartSearch.liveTools` / `smartSearch.sessionTools` activation events and view contributions have all been removed from the codebase and `package.json`
+- **Mode-aware auto-suggestions** — `getSuggestions()` now accepts a `mode` parameter (`'live'` or `'session'`); Live mode queries ALL indexed documents across every session for broader suggestions, while Session mode restricts suggestions to the active session's documents only
+- **Refactored `SolrSessionManager` suggestion logic** — extracted shared extraction into `extractSuggestionsFromDocs()`, sorting into `sortAndLimit()`, and error logging into `logAxiosError()` private helpers; removed verbose inline `console.error` blocks
+- **Post-query filtering for Solr results** — the Case Sensitive and Whole Word toggles in the Solr Results toolbar now apply as client-side post-query filters on stored results, avoiding reliance on inconsistent Solr boolean fields
+
+### Fixed
+- **Suggestions dropdown clipping** — the `.suggestions-dropdown` in the Search view no longer uses `position: absolute` / `z-index` / `max-height`, preventing the dropdown from being clipped by the panel's `overflow: hidden`; the search container's overflow is set to `visible`
+
+---
+
 ## [2.1.2] - 2026-02-24
 
 ### Added

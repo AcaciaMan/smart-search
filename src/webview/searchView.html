@@ -19,7 +19,7 @@
             background-color: var(--vscode-editor-background);
             border-radius: 8px;
             border: 1px solid var(--vscode-widget-border);
-            overflow: hidden;
+            overflow: visible;
         }
         
         /* Search Mode Toggle */
@@ -27,6 +27,8 @@
             display: flex;
             background-color: var(--vscode-textCodeBlock-background);
             border-bottom: 1px solid var(--vscode-widget-border);
+            border-radius: 8px 8px 0 0;
+            overflow: hidden;
         }
         
         .mode-tab {
@@ -285,17 +287,10 @@
         }
         
         .suggestions-dropdown {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
             background-color: var(--vscode-input-background);
             border: 1px solid var(--vscode-input-border);
             border-top: none;
             border-radius: 0 0 4px 4px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
             display: none;
         }
         
@@ -524,7 +519,7 @@
             }
 
             // Toggle options (case, word, regex) are read by the extension
-            // directly from the Live Tools / Session Tools sidebar views.
+            // from the Ripgrep / Solr results panel toolbars.
             const options = {
                 searchInResults: currentMode === 'session'
             };
@@ -609,11 +604,11 @@
         });
 
         function getSuggestions(query) {
-            // Always use latest session - let backend prioritize latest session data
+            // Pass current mode so backend can tailor suggestions
             vscode.postMessage({
                 type: 'getSuggestions',
-                query: query
-                // No sessionId - backend will use latest session automatically
+                query: query,
+                mode: currentMode // 'live' or 'session'
             });
         }
 

@@ -21,7 +21,7 @@
     "find",
     "discover"
   ],
-  "version": "2.1.2",
+  "version": "2.1.3",
   "publisher": "manacacia",
   "icon": "icon.png",
   "repository": {
@@ -41,8 +41,6 @@
   "activationEvents": [
     "onCommand:smart-search.search",
     "onView:smartSearch.searchView",
-    "onView:smartSearch.liveTools",
-    "onView:smartSearch.sessionTools",
     "onView:smartSearch.recentSearchView",
     "onView:smartSearch.configCheck"
   ],
@@ -100,18 +98,6 @@
           "name": "Search",
           "type": "webview",
           "icon": "$(search)"
-        },
-        {
-          "id": "smartSearch.liveTools",
-          "name": "Live Tools",
-          "type": "webview",
-          "icon": "$(tools)"
-        },
-        {
-          "id": "smartSearch.sessionTools",
-          "name": "Session Tools",
-          "type": "webview",
-          "icon": "$(database)"
         },
         {
           "id": "smartSearch.recentSearchView",

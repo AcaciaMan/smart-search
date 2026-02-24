@@ -253,9 +253,176 @@
     .collapse-icon.expanded {
       transform: rotate(90deg);
     }
+
+    /* ── Search-option toggle toolbar ────────────────────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      margin-bottom: 10px;
+    }
+    .toolbar-label {
+      font-size: 0.78em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--vscode-descriptionForeground);
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--vscode-editor-font-family, monospace);
+      padding: 0 4px;
+      transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .toggle-btn:hover {
+      background-color: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-widget-border);
+      color: var(--vscode-foreground);
+    }
+    .toggle-btn.active {
+      background-color: var(--vscode-inputOption-activeBackground, rgba(0,120,212,0.2));
+      border-color: var(--vscode-inputOption-activeBorder, var(--vscode-button-background));
+      color: var(--vscode-inputOption-activeForeground, var(--vscode-button-background));
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 24px;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      background: none;
+      cursor: pointer;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      padding: 0 4px;
+      transition: background-color 0.12s;
+    }
+    .action-btn:hover {
+      background-color: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-widget-border);
+      color: var(--vscode-foreground);
+    }
+    .toolbar-sep {
+      width: 1px;
+      height: 18px;
+      background-color: var(--vscode-panel-border);
+      margin: 0 4px;
+    }
+    .toolbar-summary {
+      font-size: 0.75em;
+      color: var(--vscode-descriptionForeground);
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .toolbar-summary.has-active {
+      color: var(--vscode-inputValidation-infoForeground);
+    }
+
+    /* ── Context-lines counters ──────────────────────────────────────────── */
+    .context-counter {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+      border-radius: 3px;
+      overflow: hidden;
+      margin-left: 2px;
+    }
+    .ctx-flag {
+      font-size: 0.72em;
+      font-weight: 700;
+      font-family: var(--vscode-editor-font-family, monospace);
+      color: var(--vscode-descriptionForeground);
+      padding: 1px 4px 1px 5px;
+      background: var(--vscode-input-background);
+      border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+      user-select: none;
+      white-space: nowrap;
+    }
+    .ctx-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 22px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--vscode-foreground);
+      font-size: 13px;
+      padding: 0;
+    }
+    .ctx-btn:hover { background-color: var(--vscode-list-hoverBackground); }
+    .ctx-value {
+      min-width: 22px;
+      text-align: center;
+      font-size: 0.78em;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-weight: 600;
+      color: var(--vscode-foreground);
+      background: var(--vscode-input-background);
+      border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+      border-right: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+      padding: 1px 2px;
+      user-select: none;
+    }
+    .ctx-value.nonzero {
+      color: var(--vscode-inputOption-activeForeground, var(--vscode-button-background));
+      background-color: var(--vscode-inputOption-activeBackground, rgba(0,120,212,0.15));
+    }
   </style>
 </head>
 <body>
+  <!-- ── Search-option toolbar (replaces Live Tools sidebar) ─────────── -->
+  <div class="toolbar" id="options-toolbar">
+    <span class="toolbar-label">Options</span>
+    <button class="toggle-btn" id="btn-case" title="Case Sensitive (Alt+C)">Aa</button>
+    <button class="toggle-btn" id="btn-word" title="Whole Word (Alt+W)" style="border-bottom:1.5px solid currentColor">ab</button>
+    <button class="toggle-btn" id="btn-regex" title="Use Regular Expression (Alt+R)">.*</button>
+    <div class="toolbar-sep"></div>
+    <button class="toggle-btn" id="btn-filestats" title="File Statistics Search – files-only match count with statistics">F#</button>
+    <div class="toolbar-sep"></div>
+    <button class="action-btn" id="btn-filter" title="Choose Search Filter">&#x22EE;</button>
+    <button class="action-btn" id="btn-refine" title="Open Search Refinement Panel">&#x22F1;</button>
+    <div class="toolbar-sep"></div>
+    <div class="context-counter" title="Context Lines: same number above and below (ripgrep -C)">
+      <span class="ctx-flag">-C</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLines',-1)">−</button>
+      <span class="ctx-value" id="ctx-contextLines">0</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLines',+1)">+</button>
+    </div>
+    <div class="context-counter" title="Lines Before each match (ripgrep -B)">
+      <span class="ctx-flag">-B</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLinesBefore',-1)">−</button>
+      <span class="ctx-value nonzero" id="ctx-contextLinesBefore">10</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLinesBefore',+1)">+</button>
+    </div>
+    <div class="context-counter" title="Lines After each match (ripgrep -A)">
+      <span class="ctx-flag">-A</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLinesAfter',-1)">−</button>
+      <span class="ctx-value nonzero" id="ctx-contextLinesAfter">10</span>
+      <button class="ctx-btn" onclick="adjustCtx('contextLinesAfter',+1)">+</button>
+    </div>
+    <span class="toolbar-summary" id="toolbar-summary"></span>
+  </div>
+
   <div class="header">
     <h2>
       <span class="ripgrep-badge">RIPGREP</span>
@@ -317,6 +484,92 @@
       excludePatterns: [],
       maxFiles: 100
     };
+
+    // ── Toggle-option state (replaces Live Tools sidebar) ─────────────
+    const toggleState = {
+      caseSensitive: false,
+      wholeWord: false,
+      useRegex: false,
+      fileStatsMode: false,
+      contextLines: 0,
+      contextLinesBefore: 10,
+      contextLinesAfter: 10
+    };
+
+    // Wire toggle buttons
+    document.getElementById('btn-case').addEventListener('click', function() { toggleOpt('caseSensitive', this); });
+    document.getElementById('btn-word').addEventListener('click', function() { toggleOpt('wholeWord', this); });
+    document.getElementById('btn-regex').addEventListener('click', function() { toggleOpt('useRegex', this); });
+    document.getElementById('btn-filestats').addEventListener('click', function() { toggleOpt('fileStatsMode', this); });
+    // Command buttons (fire-and-forget)
+    document.getElementById('btn-filter').addEventListener('click', function() {
+      vscode.postMessage({ command: 'executeCommand', commandId: 'smart-search.chooseFilterForCurrentSearch' });
+    });
+    document.getElementById('btn-refine').addEventListener('click', function() {
+      vscode.postMessage({ command: 'executeCommand', commandId: 'smart-search.openRefinementPanel' });
+    });
+
+    function toggleOpt(id, el) {
+      toggleState[id] = !toggleState[id];
+      el.classList.toggle('active', toggleState[id]);
+      persistToggleState();
+    }
+
+    function adjustCtx(id, delta) {
+      toggleState[id] = Math.max(0, Math.min(99, (toggleState[id] || 0) + delta));
+      syncCtxSpan(id);
+      persistToggleState();
+    }
+
+    function syncCtxSpan(id) {
+      const span = document.getElementById('ctx-' + id);
+      if (span) {
+        const v = toggleState[id] || 0;
+        span.textContent = v;
+        span.className = 'ctx-value' + (v > 0 ? ' nonzero' : '');
+      }
+    }
+
+    function persistToggleState() {
+      vscode.postMessage({ command: 'toggleOptionsChanged', options: { ...toggleState } });
+      updateToolbarSummary();
+    }
+
+    function updateToolbarSummary() {
+      const parts = [];
+      if (toggleState.caseSensitive) parts.push('Case');
+      if (toggleState.wholeWord) parts.push('Word');
+      if (toggleState.useRegex) parts.push('.*');
+      if (toggleState.fileStatsMode) parts.push('F#');
+      if (toggleState.contextLines > 0) parts.push('-C' + toggleState.contextLines);
+      if (toggleState.contextLinesBefore > 0) parts.push('-B' + toggleState.contextLinesBefore);
+      if (toggleState.contextLinesAfter > 0) parts.push('-A' + toggleState.contextLinesAfter);
+      const summary = document.getElementById('toolbar-summary');
+      if (parts.length) {
+        summary.textContent = parts.join(' \u00B7 ');
+        summary.className = 'toolbar-summary has-active';
+      } else {
+        summary.textContent = '';
+        summary.className = 'toolbar-summary';
+      }
+    }
+
+    function applyIncomingToggleState(opts) {
+      if (!opts) return;
+      Object.assign(toggleState, opts);
+      ['caseSensitive','wholeWord','useRegex','fileStatsMode'].forEach(id => {
+        const btnMap = { caseSensitive:'btn-case', wholeWord:'btn-word', useRegex:'btn-regex', fileStatsMode:'btn-filestats' };
+        const el = document.getElementById(btnMap[id]);
+        if (el) el.classList.toggle('active', !!toggleState[id]);
+      });
+      syncCtxSpan('contextLines');
+      syncCtxSpan('contextLinesBefore');
+      syncCtxSpan('contextLinesAfter');
+      updateToolbarSummary();
+    }
+
+    // Init summary
+    updateToolbarSummary();
     
     // Add event delegation for result headers
     document.addEventListener('click', (event) => {
@@ -574,6 +827,9 @@
           break;
         case 'searchComplete':
           renderResults(message.data);
+          break;
+        case 'setToggleOptions':
+          applyIncomingToggleState(message.options);
           break;
       }
     });

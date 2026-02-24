@@ -5,25 +5,26 @@ Intelligent VS Code extension for contextual search with ripgrep and Solr indexi
 <img alt="Screenshot_ripgrep_stats" src="https://github.com/user-attachments/assets/cacc12b1-2e30-4106-bf02-9c972a81014a" />
 
 
-## What's New in v2.1.2
+## What's New in v2.1.3
 
-v2.1.2 adds a comprehensive Solr integration test suite (7 test files, 90+ assertions) and the tooling to run them.
+v2.1.3 streamlines the sidebar by moving all search-option toggles into the results panel toolbars and improves auto-suggestions.
 
-- **Solr integration tests** — end-to-end tests covering indexing, search & query, query builder, highlighting, session management, filters & presets, and the results panel, all running against a live Solr instance
-- **`npm run test:integration`** — new script that sets `SOLR_INTEGRATION=true` to include the Solr tests; `npm test` continues to run only unit tests
-- **Shared test infrastructure** — reusable helpers for seeding/cleaning Solr data, connectivity checks, and a test-data factory with unique-ID generators
+- **Consolidated toolbars** — Case Sensitive, Whole Word, Regex, File Stats, Filter, and Refine controls are now embedded directly in the Ripgrep / Solr Results panels; the separate Live Tools and Session Tools sidebar views have been removed
+- **Mode-aware suggestions** — Live Search suggestions now query across all sessions for broader results; Session Search suggestions are scoped to the active session
+- **Post-query Solr filtering** — Case Sensitive and Whole Word toggles are applied as client-side post-filters on session results for accurate matching
+- **Suggestions dropdown fix** — the autocomplete dropdown no longer clips behind the search panel border
 
 See the [Changelog](CHANGELOG.md) for the complete list of changes.
 
 
 ## Features
 
-- **Reorganized Sidebar UI**: Five dedicated panels – Search, Live Tools, Session Tools, Recent Searches, Health Check
+- **Streamlined Sidebar UI**: Three dedicated sections – Search, Recent Searches, Health Check – with search-option toggles embedded in result panel toolbars
 - **Named Filter Presets**: Save include/exclude glob patterns as named presets (global or workspace scope); reuse them instantly across searches via the Choose Filter QuickPick or Live Tools toolbar
 - **Search Refinement Panel**: Full-featured editor panel with a folder/extension tree, glob chip rows, custom glob inputs, live ripgrep-flags preview, and a Test button that runs `rg --files` against the workspace
 - **Health Check panel**: Instant diagnostic view showing ripgrep availability, Solr connectivity, index statistics, and actionable fix suggestions
 - **Dual Search Modes**: Live Search (workspace files via ripgrep) and Session Search (stored Solr results)
-- **Icon Toggle Toolbars**: Case Sensitive, Whole Word, Regex, and File Stats controls in compact icon toolbars; Live Tools also has one-click **Filter** and **Refine** action buttons
+- **Panel Toggle Toolbars**: Case Sensitive, Whole Word, Regex, and File Stats controls in compact toolbars inside each results panel; Ripgrep panel also has one-click **Filter** and **Refine** action buttons
 - **Recent Searches Panel**: Tabbed view showing clickable search history and stored sessions; clicking a history item fills the search box; clicking a session switches to Session mode automatically
 - **Multi-Folder Search**: Automatically searches across all workspace folders with intelligent parallel processing
 - **Fast Text Search**: Uses ripgrep for lightning-fast text search across your workspace
@@ -72,27 +73,10 @@ See the detailed configuration guide: [SOLR_HIGHLIGHTING_CONFIG.md](SOLR_HIGHLIG
 
 ### Activity Bar Layout
 
-When you open the Smart Search panel you will see four collapsible sections in the sidebar:
+When you open the Smart Search panel you will see three collapsible sections in the sidebar:
 
 #### 🔍 Search
 The main query input. Use the **Live Search** / **Session Search** tabs to switch modes. Press `Enter` or the Search button to execute.
-
-#### ⚙️ Live Tools
-Compact icon toolbar for **ripgrep live searches**. Toggles persist across searches.
-
-| Icon | Option | Effect |
-|------|--------|--------|
-| `Aa` | Case Sensitive | Match exact letter case |
-| `ab` | Whole Word | Match complete words only |
-| `.*` | Regex | Interpret query as a regular expression |
-| `F#` | File Stats | Next search returns per-file match counts |
-| `⋮` | **Filter** | Open the Choose Search Filter QuickPick |
-| `⋱` | **Refine** | Open the Search Refinement Panel |
-
-The status strip at the bottom of this panel shows which filters are currently active (e.g., *Active: Case · .**)
-
-#### 🗄️ Session Tools
-Compact icon toolbar for **Session / Solr searches**. Same Case Sensitive and Whole Word toggles (Regex is not applicable to Solr session queries).
 
 #### 🕐 Recent Searches
 Tabbed panel with two views:
@@ -108,10 +92,27 @@ Live diagnostic panel that checks all external dependencies:
 - **Actionable suggestions** — OS-specific install commands, Solr start commands, core creation steps, and inline links to open relevant VS Code settings
 - Use the **↻ Refresh** button to re-run checks at any time
 
+### Results Panel Toolbars
+
+Each results panel includes an embedded toggle toolbar:
+
+**Ripgrep Results** toolbar:
+
+| Icon | Option | Effect |
+|------|--------|--------|
+| `Aa` | Case Sensitive | Match exact letter case |
+| `ab` | Whole Word | Match complete words only |
+| `.*` | Regex | Interpret query as a regular expression |
+| `F#` | File Stats | Next search returns per-file match counts |
+| `⋮` | **Filter** | Open the Choose Search Filter QuickPick |
+| `⋱` | **Refine** | Open the Search Refinement Panel |
+
+**Solr Results** toolbar: Case Sensitive (`Aa`) and Whole Word (`ab`) toggles — applied as post-query filters on session results.
+
 ### Basic Search
 - Press `Ctrl+Shift+F` (or `Cmd+Shift+F` on Mac) to open Smart Search
 - Choose your search mode (Live or Session)
-- Set any toggle options in the Live Tools or Session Tools panel
+- Set any toggle options in the results panel toolbar
 - Enter your search query and press Enter
 - Results will appear in a dedicated panel
 
